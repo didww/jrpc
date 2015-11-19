@@ -1,4 +1,4 @@
-# Jrpc
+# JRPC
 
 JSON RPC TCP client
 

@@ -9,7 +9,7 @@ module JRPC
     def receive_string
       length = get_msg_length
       response = recv(length)
-      raise Exception.new('invalid response. missed comma as terminator') if response[-1] != ','
+      raise ClientError.new('invalid response. missed comma as terminator') if response[-1] != ','
       response.chomp(',')
     end
 

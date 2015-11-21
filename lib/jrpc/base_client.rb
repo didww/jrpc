@@ -1,6 +1,17 @@
 require 'json'
+require 'forwardable'
 module JRPC
   class BaseClient
+    extend Forwardable
+
+    attr_reader :uri, :options
+
+    ID_CHARACTERS = (('a'..'z').to_a + ('0'..'9').to_a + ('A'..'Z').to_a).freeze
+
+    def initialize(uri, options)
+      @uri = uri
+      @options = options
+    end
 
     def method_missing(method, *params)
       invoke_request(method, *params)
@@ -11,7 +22,7 @@ module JRPC
       id = generate_id
       request['id'] = id
 
-      response = send_request request.to_json
+      response = send_command request.to_json
       response = JSON.parse response
 
       validate_response(response, id)
@@ -52,7 +63,7 @@ module JRPC
       end
     end
 
-    def send_request(json)
+    def send_command(json)
       raise NotImplementedError
     end
 
@@ -61,7 +72,8 @@ module JRPC
     end
 
     def generate_id
-      (0...10).map { ('a'..'z').to_a[rand(26)] }.join
+      size = ID_CHARACTERS.size
+      (0...32).map { ID_CHARACTERS.to_a[rand(size)] }.join
     end
 
     def create_message(method, params)

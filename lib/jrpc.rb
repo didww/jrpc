@@ -1,5 +1,4 @@
 require 'jrpc/version'
-require 'jrpc/netstring_tcp_socket'
 require 'jrpc/base_client'
 require 'jrpc/tcp_client'
 require 'jrpc/error/error'

@@ -3,49 +3,29 @@ require 'netstring'
 module JRPC
   class TcpClient < BaseClient
     attr_reader :namespace
-    def_delegators :@socket, :logger, :logger=
+    def_delegators :@socket, :logger, :logger=, :close, :alive?
 
     def initialize(uri, options = {})
       super
       @namespace = options.delete(:namespace).to_s
-      connect if options.fetch(:connect_on_initialize, true)
-    end
+      t = @options.fetch(:timeout, 5)
 
-    def connect
-      close if alive?
-      @socket = Net::TCPClient.new(connection_params)
-    end
-
-    def close
-      unless @socket.nil?
-        @socket.close
-        @socket = nil
-      end
-    end
-
-    def alive?
-      if @socket.nil?
-        false
-      else
-        @socket.alive?
-      end
+      @socket = Net::TCPClient.new server: @uri,
+                                   connect_retry_count: t,
+                                   connect_timeout: t,
+                                   read_timeout: t,
+                                   # write_timeout: t,
+                                   buffered: false # recommended for RPC
     end
 
     private
 
-    def connection_params
-      t = options.fetch(:timeout, 5)
-      {server: uri, connect_retry_count: t, connect_timeout: t, read_timeout: t, buffered: false}
-    end
-
     def send_command(request)
-      connect unless alive?
       send_request(request)
       receive_response
     end
 
     def send_notification(request)
-      connect unless alive?
       send_request(request)
     end
 
@@ -54,7 +34,7 @@ module JRPC
     end
 
     def send_request(request)
-      @socket.write Netstring.dump(request.to_s)
+      @socket.send Netstring.dump(request.to_s), 0
     end
 
     def receive_response

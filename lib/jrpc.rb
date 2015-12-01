@@ -1,7 +1,6 @@
 require 'jrpc/version'
 require 'jrpc/base_client'
 require 'jrpc/tcp_client'
-require 'jrpc/safe_tcp_client'
 require 'jrpc/error/error'
 require 'jrpc/error/client_error'
 require 'jrpc/error/server_error'

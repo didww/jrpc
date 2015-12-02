@@ -1,12 +1,14 @@
 require 'spec_helper'
+require 'logger'
 
 describe JRPC::TcpClient do
 
   describe '#invoke_request' do
     subject do
-      client = JRPC::TcpClient.new(hostname: '127.0.0.1', port: '1234')
+      client = JRPC::TcpClient.new('127.0.0.1:1234', client_options)
       client.invoke_request('sum', 1, 2)
     end
+    let(:client_options) { {} }
 
     let(:expected_request) do
       {
@@ -35,7 +37,7 @@ describe JRPC::TcpClient do
       expect_any_instance_of(JRPC::TcpClient).to receive(:generate_id).with(no_args).and_return('rspec-generated-id')
 
       expect(Net::TCPClient).to receive(:new).with(any_args).once.and_return(socket_stub)
-      expect(socket_stub).to receive(:send).with(raw_expected_request, 0).once
+      expect(socket_stub).to receive(:write).with(raw_expected_request).once
 
       expect(socket_stub).to receive(:read).with(1).exactly(expected_result.size.to_s.size).times.
           and_return(

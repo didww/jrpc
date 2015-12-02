@@ -15,8 +15,7 @@ module JRPC
                                    connect_timeout: t,
                                    read_timeout: t, # write_timeout: t,
                                    buffered: false, # recommended for RPC
-                                   logger: @options.delete(:logger),
-                                   log_level: @options.delete(:log_level)
+                                   logger: @options.delete(:logger)
     end
 
     private

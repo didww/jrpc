@@ -22,7 +22,7 @@ module JRPC
       id = generate_id
       request['id'] = id
 
-      response = send_command request.to_json
+      response = send_command JSON.generate(request)
       response = JSON.parse response
 
       validate_response(response, id)

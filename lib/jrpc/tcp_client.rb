@@ -7,15 +7,16 @@ module JRPC
 
     def initialize(uri, options = {})
       super
-      @namespace = options.delete(:namespace).to_s
+      @namespace = @options.delete(:namespace).to_s
       t = @options.fetch(:timeout, 5)
 
       @client = Net::TCPClient.new server: @uri,
                                    connect_retry_count: t,
                                    connect_timeout: t,
-                                   read_timeout: t,
-                                   # write_timeout: t,
-                                   buffered: false # recommended for RPC
+                                   read_timeout: t, # write_timeout: t,
+                                   buffered: false, # recommended for RPC
+                                   logger: @options.delete(:logger),
+                                   log_level: @options.delete(:log_level)
     end
 
     private

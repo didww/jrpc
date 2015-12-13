@@ -1,5 +1,6 @@
 require 'spec_helper'
 require 'logger'
+require 'json'
 
 describe JRPC::TcpClient do
 

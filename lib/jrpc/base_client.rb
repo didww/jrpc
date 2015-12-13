@@ -1,4 +1,4 @@
-require 'json'
+require 'oj'
 require 'forwardable'
 module JRPC
   class BaseClient
@@ -22,8 +22,8 @@ module JRPC
       id = generate_id
       request['id'] = id
 
-      response = send_command JSON.generate(request)
-      response = JSON.parse response
+      response = send_command Oj.dump(request)
+      response = Oj.load(response)
 
       validate_response(response, id)
       parse_error(response['error']) if response.has_key?('error')

@@ -22,7 +22,7 @@ module JRPC
       id = generate_id
       request['id'] = id
 
-      response = send_command Oj.dump(request)
+      response = send_command Oj.dump(request, mode: :compat)
       response = Oj.load(response)
 
       validate_response(response, id)

@@ -3,14 +3,14 @@ require 'netstring'
 module JRPC
   class TcpClient < BaseClient
     attr_reader :namespace
-    def_delegators :@client, :logger, :logger=, :close, :closed?
+    def_delegators :@transport, :logger, :logger=, :close, :closed?, :connect
 
     def initialize(uri, options = {})
       super
       @namespace = @options.delete(:namespace).to_s
       t = @options.fetch(:timeout, 5)
 
-      @client = Net::TCPClient.new server: @uri,
+      @transport = Net::TCPClient.new server: @uri,
                                    connect_retry_count: t,
                                    connect_timeout: t,
                                    read_timeout: t, # write_timeout: t,
@@ -34,12 +34,12 @@ module JRPC
     end
 
     def send_request(request)
-      @client.write Netstring.dump(request.to_s)
+      @transport.write Netstring.dump(request.to_s)
     end
 
     def receive_response
       length = get_msg_length
-      response = @client.read(length+1)
+      response = @transport.read(length+1)
       raise ClientError.new('invalid response. missed comma as terminator') if response[-1] != ','
       response.chomp(',')
     end
@@ -47,7 +47,7 @@ module JRPC
     def get_msg_length
       length = ''
       while true do
-        character = @client.read(1)
+        character = @transport.read(1)
         break if character == ':'
         length += character
       end

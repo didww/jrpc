@@ -21,6 +21,8 @@ module JRPC
                                    connect_timeout: t,
                                    read_timeout: t, # write_timeout: t,
                                    buffered: false # recommended for RPC
+    rescue ::SocketError
+      raise ConnectionError, "Can't connect to #{@uri}"
     end
 
     private
@@ -50,6 +52,8 @@ module JRPC
 
     def send_request(request)
       @transport.write Netstring.dump(request.to_s)
+    rescue ::SocketError
+      raise ConnectionError, "Can't send request to #{uri}"
     end
 
     def receive_response
@@ -57,6 +61,8 @@ module JRPC
       response = @transport.read(length+1)
       raise ClientError.new('invalid response. missed comma as terminator') if response[-1] != ','
       response.chomp(',')
+    rescue ::SocketError
+      raise ConnectionError, "Can't receive response from #{uri}"
     end
 
     def get_msg_length

@@ -7,6 +7,7 @@ module JRPC
     attr_reader :uri, :options
 
     ID_CHARACTERS = (('a'..'z').to_a + ('0'..'9').to_a + ('A'..'Z').to_a).freeze
+    REQUEST_TYPES = [:request, :notification].freeze
 
     def initialize(uri, options)
       @uri = uri
@@ -17,31 +18,58 @@ module JRPC
       invoke_request(method, *params)
     end
 
+    def perform_request(method, params: nil, type: :request)
+      validate_request(params, type)
+      request = create_message(method.to_s, params)
+      if type == :request
+        id = generate_id
+        request['id'] = id
+        response = send_command serialize_request(request)
+        response = deserialize_response(response)
+
+        validate_response(response, id)
+        parse_error(response['error']) if response.has_key?('error')
+
+        response['result']
+      else
+        send_notification serialize_request(request)
+        nil
+      end
+    end
+
     def invoke_request(method, *params)
-      request = create_message(method, params)
-      id = generate_id
-      request['id'] = id
-
-      response = send_command Oj.dump(request, mode: :compat)
-      response = Oj.load(response)
-
-      validate_response(response, id)
-      parse_error(response['error']) if response.has_key?('error')
-
-      response['result']
+      warn '[DEPRECATION] `invoke_request` is deprecated. Please use `perform_request` instead.'
+      params = nil if params.empty?
+      perform_request(method, params: params)
     end
 
     def invoke_notification(method, *params)
-      send_notification create_message(method, params).to_json
-      nil
+      warn '[DEPRECATION] `invoke_request` is deprecated. Please use `perform_request` instead.'
+      params = nil if params.empty?
+      perform_request(method, params: params, type: :notification)
     end
 
     private
 
+    def serialize_request(request)
+      Oj.dump(request, mode: :compat)
+    end
+
+    def deserialize_response(response)
+      Oj.load(response)
+    end
+
     def validate_response(response, id)
-      raise ClientError.new('Wrong response structure') unless response.is_a?(Hash)
-      raise ClientError.new('Wrong version') if response['jsonrpc'] != JRPC::JSON_RPC_VERSION
-      raise ClientError.new("ID response mismatch. expected #{id.inspect} got #{response['id'].inspect}") if id != response['id']
+      raise ClientError, 'Wrong response structure' unless response.is_a?(Hash)
+      raise ClientError, 'Wrong version' if response['jsonrpc'] != JRPC::JSON_RPC_VERSION
+      if id != response['id']
+        raise ClientError, "ID response mismatch. expected #{id.inspect} got #{response['id'].inspect}"
+      end
+    end
+
+    def validate_request(params, type)
+      raise ClientError, 'invalid type' unless REQUEST_TYPES.include?(type)
+      raise ClientError, 'invalid params' if !params.nil? && !params.is_a?(Array) && !params.is_a?(Hash)
     end
 
     def parse_error(error)
@@ -81,7 +109,7 @@ module JRPC
           'jsonrpc' => JSON_RPC_VERSION,
           'method' => method
       }
-      message['params'] = params unless params.empty?
+      message['params'] = params unless params.nil?
       message
     end
   end

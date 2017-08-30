@@ -43,14 +43,14 @@ describe JRPC::TcpClient do
     it "sends request #{method} #{without_params ? 'without params' : params.inspect} and receives #{result.inspect}" do
       json_request = expected_request.to_json
       raw_expected_request = "#{json_request.size}:#{json_request},"
-      expect(socket_stub).to receive(:write).with(raw_expected_request).once
+      expect(socket_stub).to receive(:write).with(raw_expected_request, 60).once
 
       json_result = expected_result.to_json
-      expect(socket_stub).to receive(:read).with(1).exactly(json_result.size.to_s.size).times.
+      expect(socket_stub).to receive(:read).with(1, nil, 30).exactly(json_result.size.to_s.size).times.
           and_return(
               *(json_result.size.to_s.split('') + [':'])
           )
-      expect(socket_stub).to receive(:read).with(json_result.size + 1).and_return(json_result + ',')
+      expect(socket_stub).to receive(:read).with(json_result.size + 1, nil, 30).and_return(json_result + ',')
 
       expect(subject).to eq JSON.parse(json_result)['result']
     end
@@ -84,7 +84,7 @@ describe JRPC::TcpClient do
     it "sends notification #{method} #{without_params ? 'without params' : params.inspect}" do
       json_request = expected_request.to_json
       raw_expected_request = "#{json_request.size}:#{json_request},"
-      expect(socket_stub).to receive(:write).with(raw_expected_request).once
+      expect(socket_stub).to receive(:write).with(raw_expected_request, 60).once
 
       expect(socket_stub).to_not receive(:read)
 
@@ -107,7 +107,7 @@ describe JRPC::TcpClient do
     let(:client_options) { {} }
     let(:invoke_request_method) { 'sum' }
     let(:invoke_request_params) { [1, 2] }
-    let(:socket_stub) { instance_double(Net::TCPClient) }
+    let(:socket_stub) { instance_double(Net::TCPClient, read_timeout: 30, write_timeout: 60) }
 
     before do
       allow(Net::TCPClient).to receive(:new).with(any_args).once.and_return(socket_stub)
@@ -144,7 +144,7 @@ describe JRPC::TcpClient do
     let(:client_options) { {} }
     let(:invoke_notification_method) { 'sum' }
     let(:invoke_notification_params) { [1, 2] }
-    let(:socket_stub) { instance_double(Net::TCPClient) }
+    let(:socket_stub) { instance_double(Net::TCPClient, read_timeout: 30, write_timeout: 60) }
 
     before do
       allow(Net::TCPClient).to receive(:new).with(any_args).once.and_return(socket_stub)
@@ -182,7 +182,7 @@ describe JRPC::TcpClient do
     let(:client) { JRPC::TcpClient.new('127.0.0.1:1234', client_options) }
     let(:client_options) { {} }
     let(:stubbed_generated_id) { 'rspec-generated-id' }
-    let(:socket_stub) { instance_double(Net::TCPClient) }
+    let(:socket_stub) { instance_double(Net::TCPClient, read_timeout: 30, write_timeout: 60) }
 
     before do
       allow_any_instance_of(JRPC::TcpClient).to receive(:generate_id).with(no_args).and_return(stubbed_generated_id)

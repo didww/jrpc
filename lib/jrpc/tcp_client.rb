@@ -38,24 +38,26 @@ module JRPC
       write_timeout = options.fetch(:write_timeout)
       response = nil
       t = Benchmark.realtime do
-        logger.debug "Request address: #{uri}"
-        logger.debug "Request message: #{Utils.truncate(request, MAX_LOGGED_MESSAGE_LENGTH)}"
-        logger.debug "Request read_timeout: #{read_timeout}"
-        logger.debug "Request write_timeout: #{write_timeout}"
+        logger.debug { "Request address: #{uri}" }
+        logger.debug { "Request message: #{Utils.truncate(request, MAX_LOGGED_MESSAGE_LENGTH)}" }
+        logger.debug { "Request read_timeout: #{read_timeout}" }
+        logger.debug { "Request write_timeout: #{write_timeout}" }
         send_request(request, write_timeout)
         response = receive_response(read_timeout)
       end
-      logger.debug "(#{'%.2f' % (t * 1000)}ms) Response message: #{Utils.truncate(response, MAX_LOGGED_MESSAGE_LENGTH)}"
+      logger.debug do
+        "(#{'%.2f' % (t * 1000)}ms) Response message: #{Utils.truncate(response, MAX_LOGGED_MESSAGE_LENGTH)}"
+      end
       response
     end
 
     def send_notification(request, options={})
       write_timeout = options.fetch(:write_timeout)
-      logger.debug "Request address: #{uri}"
-      logger.debug "Request message: #{Utils.truncate(request, MAX_LOGGED_MESSAGE_LENGTH)}"
-      logger.debug "Request write_timeout: #{write_timeout}"
+      logger.debug { "Request address: #{uri}" }
+      logger.debug { "Request message: #{Utils.truncate(request, MAX_LOGGED_MESSAGE_LENGTH)}" }
+      logger.debug { "Request write_timeout: #{write_timeout}" }
       send_request(request, write_timeout)
-      logger.debug 'No response required'
+      logger.debug { 'No response required' }
     end
 
     def create_message(method, params)

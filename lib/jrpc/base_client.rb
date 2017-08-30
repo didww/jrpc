@@ -18,13 +18,13 @@ module JRPC
       invoke_request(method, *params)
     end
 
-    def perform_request(method, params: nil, type: :request)
+    def perform_request(method, params: nil, type: :request, read_timeout: nil, write_timeout: nil)
       validate_request(params, type)
       request = create_message(method.to_s, params)
       if type == :request
         id = generate_id
         request['id'] = id
-        response = send_command serialize_request(request)
+        response = send_command serialize_request(request), read_timeout: read_timeout, write_timeout: write_timeout
         response = deserialize_response(response)
 
         validate_response(response, id)
@@ -32,7 +32,7 @@ module JRPC
 
         response['result']
       else
-        send_notification serialize_request(request)
+        send_notification serialize_request(request), write_timeout: write_timeout
         nil
       end
     end
@@ -91,11 +91,11 @@ module JRPC
       end
     end
 
-    def send_command(json)
+    def send_command(json, options={})
       raise NotImplementedError
     end
 
-    def send_notification(json)
+    def send_notification(json, options={})
       raise NotImplementedError
     end
 

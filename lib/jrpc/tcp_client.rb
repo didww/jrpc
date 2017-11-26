@@ -74,7 +74,8 @@ module JRPC
     def receive_response(timeout)
       timeout ||= @transport.read_timeout
       length = get_msg_length(timeout)
-      response = @transport.read(length+1, nil, timeout)
+      response = ''
+      @transport.read(length+1, response, timeout)
       raise ClientError.new('invalid response. missed comma as terminator') if response[-1] != ','
       response.chomp(',')
     rescue ::SocketError

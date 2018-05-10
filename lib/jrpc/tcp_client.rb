@@ -1,4 +1,3 @@
-require 'net/tcp_client'
 require 'netstring'
 require 'logger'
 require 'benchmark'
@@ -18,22 +17,34 @@ module JRPC
       timeout = @options.fetch(:timeout, 5)
       connect_timeout = @options.fetch(:connect_timeout, timeout)
       read_timeout = @options.fetch(:read_timeout, timeout)
-      write_timeout = @options.fetch(:write_timeout, nil) # default 60
-      connect_retry_count = @options.fetch(:connect_retry_count, nil) # default 10
+      write_timeout = @options.fetch(:write_timeout, 60) # default 60
+      connect_retry_count = @options.fetch(:connect_retry_count, 10) # default 10
+      @close_after_sent = @options.fetch(:close_after_sent, false)
 
-      @transport = Net::TCPClient.new server: @uri,
-                                   connect_retry_count: connect_retry_count,
-                                   connect_timeout: connect_timeout,
-                                   read_timeout: read_timeout,
-                                   write_timeout: write_timeout,
-                                   buffered: false # recommended for RPC
-    rescue ::SocketError
-      raise ConnectionError, "Can't connect to #{@uri}"
+      @transport = JRPC::Transport::SocketTcp.new server: @uri,
+                                                  connect_retry_count: connect_retry_count,
+                                                  connect_timeout: connect_timeout,
+                                                  read_timeout: read_timeout,
+                                                  write_timeout: write_timeout
+      begin
+        @transport.connect
+      rescue JRPC::SocketTcp::Error
+        raise ConnectionError, "Can't connect to #{@uri}"
+      end
     end
 
     private
 
-    def send_command(request, options={})
+    def ensure_connected
+      if @transport.closed?
+        logger.debug { 'Connecting transport...' }
+        @transport.connect
+        logger.debug { 'Connected.' }
+      end
+    end
+
+    def send_command(request, options = {})
+      ensure_connected
       read_timeout = options.fetch(:read_timeout)
       write_timeout = options.fetch(:write_timeout)
       response = nil
@@ -49,15 +60,20 @@ module JRPC
         "(#{'%.2f' % (t * 1000)}ms) Response message: #{Utils.truncate(response, MAX_LOGGED_MESSAGE_LENGTH)}"
       end
       response
+    ensure
+      @transport.close if @close_after_sent
     end
 
-    def send_notification(request, options={})
+    def send_notification(request, options = {})
+      ensure_connected
       write_timeout = options.fetch(:write_timeout)
       logger.debug { "Request address: #{uri}" }
       logger.debug { "Request message: #{Utils.truncate(request, MAX_LOGGED_MESSAGE_LENGTH)}" }
       logger.debug { "Request write_timeout: #{write_timeout}" }
       send_request(request, write_timeout)
       logger.debug { 'No response required' }
+    ensure
+      @transport.close if @close_after_sent
     end
 
     def create_message(method, params)
@@ -74,8 +90,7 @@ module JRPC
     def receive_response(timeout)
       timeout ||= @transport.read_timeout
       length = get_msg_length(timeout)
-      response = ''
-      @transport.read(length+1, response, timeout)
+      response = @transport.read(length + 1, timeout)
       raise ClientError.new('invalid response. missed comma as terminator') if response[-1] != ','
       response.chomp(',')
     rescue ::SocketError
@@ -85,7 +100,7 @@ module JRPC
     def get_msg_length(timeout)
       length = ''
       while true do
-        character = @transport.read(1, nil, timeout)
+        character = @transport.read(1, timeout)
         break if character == ':'
         length += character
       end

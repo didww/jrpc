@@ -1,6 +1,8 @@
 require 'jrpc/version'
 require 'jrpc/utils'
 require 'jrpc/base_client'
+require 'jrpc/transport/socket_base'
+require 'jrpc/transport/socket_tcp'
 require 'jrpc/tcp_client'
 require 'jrpc/error/error'
 require 'jrpc/error/connection_error'

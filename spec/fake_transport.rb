@@ -12,9 +12,9 @@ class FakeTransport
     @write_timeout = write_timeout if write_timeout
   end
 
-  def read(_, buffer, read_timeout = nil)
+  def read(_, read_timeout = nil)
     @read_timeout = read_timeout if read_timeout
-    buffer << @response
+    @response
   end
 
   def response=(str)

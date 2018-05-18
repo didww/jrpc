@@ -50,11 +50,11 @@ describe JRPC::TcpClient do
 
       json_result = expected_result.to_json
       socket_stub.response = json_result
-      expect(socket_stub).to receive(:read).with(1, nil, 30).exactly(json_result.size.to_s.size).times.
+      expect(socket_stub).to receive(:read).with(1, 30).exactly(json_result.size.to_s.size).times.
           and_return(
               *(json_result.size.to_s.split('') + [':'])
           )
-      expect(socket_stub).to receive(:read).with(json_result.size + 1, '', 30).and_return(json_result + ',').and_call_original
+      expect(socket_stub).to receive(:read).with(json_result.size + 1, 30).and_return(json_result + ',').and_call_original
 
       expect(subject).to eq JSON.parse(json_result)['result']
     end
@@ -113,7 +113,7 @@ describe JRPC::TcpClient do
     let(:invoke_request_params) { [1, 2] }
 
     before do
-      allow(Net::TCPClient).to receive(:new).with(any_args).once.and_return(socket_stub)
+      allow(JRPC::Transport::SocketTcp).to receive(:new).with(any_args).once.and_return(socket_stub)
     end
 
     it 'calls perform_request("sum", params: [1, 2])' do
@@ -149,7 +149,7 @@ describe JRPC::TcpClient do
     let(:invoke_notification_params) { [1, 2] }
 
     before do
-      allow(Net::TCPClient).to receive(:new).with(any_args).once.and_return(socket_stub)
+      allow(JRPC::Transport::SocketTcp).to receive(:new).with(any_args).once.and_return(socket_stub)
     end
 
     it 'calls perform_request("sum", params: [1, 2], type: :notification)' do
@@ -187,7 +187,8 @@ describe JRPC::TcpClient do
 
     before do
       allow_any_instance_of(JRPC::TcpClient).to receive(:generate_id).with(no_args).and_return(stubbed_generated_id)
-      allow(Net::TCPClient).to receive(:new).with(any_args).once.and_return(socket_stub)
+      allow(JRPC::Transport::SocketTcp).to receive(:new).with(any_args).once.and_return(socket_stub)
+      allow(socket_stub).to receive(:closed?).and_return(false)
     end
 
     context 'with array params' do

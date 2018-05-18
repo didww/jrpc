@@ -9,6 +9,13 @@ module JRPC
     ID_CHARACTERS = (('a'..'z').to_a + ('0'..'9').to_a + ('A'..'Z').to_a).freeze
     REQUEST_TYPES = [:request, :notification].freeze
 
+    def self.connect(uri, options)
+      client = new(uri, options)
+      yield(client)
+    ensure
+      client.close if client
+    end
+
     def initialize(uri, options)
       @uri = uri
       @options = options

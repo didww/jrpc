@@ -18,7 +18,6 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   spec.add_dependency 'netstring', '~> 0'
-  spec.add_dependency 'net_tcp_client', '~> 2.0'
   spec.add_dependency 'oj', '~> 2.0'
 
   spec.add_development_dependency 'bundler', '~> 1.10'

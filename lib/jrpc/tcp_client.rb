@@ -28,7 +28,7 @@ module JRPC
                                                   write_timeout: write_timeout
       begin
         @transport.connect
-      rescue JRPC::SocketTcp::Error
+      rescue JRPC::Transport::SocketTcp::Error
         raise ConnectionError, "Can't connect to #{@uri}"
       end
     end

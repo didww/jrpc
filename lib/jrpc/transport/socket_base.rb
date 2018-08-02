@@ -23,6 +23,12 @@ module JRPC
       class ConnectionFailedError < Error
       end
 
+      class WriteFailedError < Error
+      end
+
+      class ReadFailedError < Error
+      end
+
       attr_reader :options, :read_timeout, :write_timeout
 
       def self.connect(options)

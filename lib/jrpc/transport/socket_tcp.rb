@@ -52,6 +52,8 @@ module JRPC
       private
 
       def clear_socket!
+        return if @socket.nil?
+        @socket.close unless @socket.closed?
         @socket = nil
       end
 

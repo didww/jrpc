@@ -2,7 +2,7 @@ module JRPC
   module Transport
     class SocketBase
 
-      class Error < StandardError
+      class Error < ::JRPC::Error
       end
 
       class TimeoutError < Error

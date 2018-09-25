@@ -13,7 +13,7 @@ module JRPC
           length_to_read -= chunk.bytesize
         end
         received
-      rescue Errno::EPIPE => e
+      rescue Errno::EPIPE, EOFError => e
         # EPIPE, in this case, means that the data connection was unexpectedly terminated.
         clear_socket!
         raise ReadFailedError, "#{e.class} #{e.message}"

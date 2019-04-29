@@ -18,7 +18,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   spec.add_dependency 'netstring', '~> 0'
-  spec.add_dependency 'oj', '~> 2'
+  spec.add_dependency 'oj', '~> 3.0'
 
   spec.add_development_dependency 'bundler', '~> 1.10'
   spec.add_development_dependency 'rake', '~> 10.0'

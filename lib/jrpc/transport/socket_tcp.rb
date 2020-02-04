@@ -67,16 +67,25 @@ module JRPC
       def build_socket
         host = @server.split(':').first
         addr = Socket.getaddrinfo(host, nil)
-        sock = Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
-        set_timeout_to(sock, Socket::SO_RCVTIMEO, @connect_timeout) if @connect_timeout
-        sock
+        Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
       end
 
       def connect_socket
         host, port = @server.split(':')
         addr = Socket.getaddrinfo(host, nil)
         full_addr = Socket.pack_sockaddr_in(port, addr[0][3])
-        socket.connect(full_addr)
+
+        begin
+          socket.connect_nonblock(full_addr)
+        rescue IO::WaitWritable => _
+          if IO.select(nil, [socket], nil, @connect_timeout)
+            socket.connect_nonblock(full_addr)
+          else
+            clear_socket!
+            raise ConnectionFailedError, "Can't connect during #{@connect_timeout}"
+          end
+        end
+
       rescue Errno::EISCONN => _
         # already connected
       rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ETIMEDOUT, Errno::EPIPE => e

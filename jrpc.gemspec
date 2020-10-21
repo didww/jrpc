@@ -20,6 +20,9 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'netstring', '~> 0'
   spec.add_dependency 'oj', '~> 3.0'
 
+  spec.executables << 'jrpc'
+  spec.executables << 'jrpc-shell'
+
   spec.add_development_dependency 'bundler', '~> 1.10'
   spec.add_development_dependency 'rake', '~> 13.0'
   spec.add_development_dependency 'rspec', '~> 3.0'

@@ -1,0 +1,100 @@
+#!/usr/bin/env ruby
+# coding: utf-8
+
+require 'optparse'
+require 'jrpc'
+
+Options = Struct.new(
+    :host,
+    :port,
+    :type,
+    :method,
+    :params,
+    :id,
+    :debug,
+    :namespace,
+    :timeout
+)
+
+class Parser
+  def self.parse(argv)
+    args = Options.new
+    args.host = '127.0.0.1'
+    args.port = 7080
+    args.type = 'request'
+    args.timeout = 5
+
+    opt_parser = OptionParser.new do |opts|
+      opts.banner = 'Usage: jrpc [options] method [params, ...]'
+
+      opts.on('--host=HOST', 'host (default 127.0.0.1)') do |host|
+        args.host = host
+      end
+
+      opts.on('-p=PORT', '--port=PORT', 'port (default 7080)') do |port|
+        args.port = port
+      end
+
+      opts.on('-r', '--request', 'Sets type to request (default true)') do
+        args.type = 'request'
+      end
+
+      opts.on('-n', '--notification', 'Sets type to is notification (default false)') do
+        args.type = 'notification'
+      end
+
+      opts.on('--namespace=NAMESPACE', 'Sets method namespace') do |namespace|
+        args.namespace = namespace
+      end
+
+      opts.on('--id=ID', 'Request ID (will be generated randomly by default)') do |id|
+        args.id = id
+      end
+
+      opts.on('--timeout=TIMEOUT', 'timeout for socket') do |timeout|
+        args.timeout = timeout
+      end
+
+      opts.on('-d', '--debug', 'Debug output') do
+        args.debug = true
+      end
+
+      opts.on('-h', '--help', 'Prints this help and exit') do
+        puts opts
+        exit
+      end
+
+      opts.on('-v', '--version', 'Prints version and exit') do
+        puts "JRPC version: #{JRPC::VERSION}"
+        exit
+      end
+    end
+
+    opt_parser.parse!(argv)
+    args.method = argv.first
+    args.params = argv[1..-1]
+    # puts "PARSED:\n#{args.inspect}\n#{argv.inspect}"
+    return args
+  end
+end
+
+options = Parser.parse(ARGV.dup)
+
+logger = Logger.new($stdout)
+logger.level = options.debug ? Logger::DEBUG : Logger::INFO
+addr = "#{options.host}:#{options.port}"
+logger.debug { "Connecting to #{addr} ..." }
+client = JRPC::TcpClient.new(addr, namespace: options.namespace, timeout: options.timeout, logger: logger)
+
+logger.debug { "Sending #{options.type} #{options.method} #{options.params} ..." }
+response = client.perform_request(options.method, params: options.params, type: options.type.to_sym)
+
+if options.type == 'request'
+  logger.debug { "Request was sent. Response: #{response.inspect}" }
+  puts JSON.pretty_generate(response)
+else
+  logger.debug 'Notification was sent.'
+end
+
+client.close
+logger.debug 'Exited'

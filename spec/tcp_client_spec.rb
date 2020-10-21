@@ -1,6 +1,5 @@
 require 'spec_helper'
 require 'logger'
-require 'json'
 require 'fake_transport'
 
 describe JRPC::TcpClient do

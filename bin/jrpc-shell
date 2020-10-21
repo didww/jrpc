@@ -1,0 +1,99 @@
+#!/usr/bin/env ruby
+# coding: utf-8
+
+require 'readline'
+require 'singleton'
+require 'jrpc'
+
+class Command
+  include Singleton
+
+  def self.call(command, args)
+    meth = "cmd_#{command}"
+    if instance.respond_to?(meth)
+      instance.public_send(meth, *args)
+    else
+      "ERROR: invalid command #{command.inspect}\n#{instance.help_usage}"
+    end
+  rescue ArgumentError => e
+    "ERROR: ArgumentError #{e.message}\n#{instance.help_usage}"
+  end
+
+  attr_accessor :logger, :client, :help_usage
+  instance.logger = Logger.new(STDOUT)
+  instance.logger.level = Logger::INFO
+  instance.help_usage = [
+      'Usage:',
+      '  connect host port',
+      '  disconnect',
+      '  request method param1 param2',
+      '  request method {"param1": 1. "param2": 2}',
+      '  notification method param1 param2',
+      '  notification method {"param1": 1. "param2": 2}',
+      '  help',
+      '  version'
+  ].join("\n")
+
+  def cmd_help
+    help_usage
+  end
+
+  def cmd_version
+    "JRPC version: #{JRPC::VERSION}"
+  end
+
+  def cmd_connect(host, port)
+    client&.close
+    self.client = JRPC::TcpClient.new("#{host}:#{port}", namespace: '', timeout: 5, logger: logger)
+    'Connected.'
+  rescue JRPC::Error => e
+    "ERROR: JRPC #{e.message}\n#{help_usage}"
+  end
+
+  def cmd_disconnect
+    return "ERROR: Not connected\n#{help_usage}" if client.nil?
+
+    client.close
+    self.client = nil
+    'Disconnected'
+  end
+
+  def cmd_request(method, *params)
+    return "ERROR: Not connected\n#{help_usage}" if client.nil?
+
+    params = JSON.parse(params.first) if params.size == 1 && params[0] == '{'
+
+    response = client.perform_request(method, params: params)
+    JSON.pretty_generate(response)
+  rescue JRPC::Error => e
+    "ERROR: JRPC #{e.message}\n#{help_usage}"
+  end
+
+  def cmd_notification(method, *params)
+    return "ERROR: Not connected\n#{help_usage}" if client.nil?
+
+    params = JSON.parse(params.first) if params.size == 1 && params[0] == '{'
+
+    response = client.perform_request(method, params: params, type: :notification)
+    JSON.pretty_generate(response)
+  rescue JRPC::Error => e
+    "ERROR: JRPC #{e.message}\n#{help_usage}"
+  end
+end
+
+puts 'Welcome to JRPC shell'
+while input = Readline.readline('> ', true)
+  if %w[exit close quit].include?(input)
+    break
+  elsif input == 'hist'
+    puts Readline::HISTORY.to_a
+  elsif input == ''
+    # Remove blank lines from history
+    Readline::HISTORY.pop
+  else
+    command, *args = input.split(' ')
+    puts Command.call(command, args)
+  end
+end
+
+puts 'Shell Exited'

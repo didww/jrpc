@@ -1,3 +1,5 @@
+require 'socket'
+require 'json'
 require 'jrpc/version'
 require 'jrpc/error/error'
 require 'jrpc/utils'

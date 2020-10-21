@@ -8,6 +8,7 @@ module JRPC
         while length_to_read > 0
           io_read, = IO.select([socket], [], [], timeout)
           raise ReadTimeoutError unless io_read
+          check_fin_signal
           chunk = io_read[0].read_nonblock(length_to_read)
           received += chunk
           length_to_read -= chunk.bytesize
@@ -25,6 +26,7 @@ module JRPC
         while data_to_write.bytesize > 0
           _, io_write, = IO.select([], [socket], [], timeout)
           raise WriteTimeoutError unless io_write
+          check_fin_signal
           chunk_length = io_write[0].write_nonblock(data_to_write)
           length_written += chunk_length
           data_to_write = data.byteslice(length_written, data.length)
@@ -41,8 +43,27 @@ module JRPC
         socket.close
       end
 
+      # Socket implementation allows client to send data to server after FIN,
+      # but server will never receive this data.
+      # So we consider socket closed when it have FIN event
+      # and close it correctly from client side.
       def closed?
-        @socket.nil? || socket.closed?
+        return true if @socket.nil? || socket.closed?
+
+        if fin_signal?
+          close
+          return true
+        end
+
+        false
+      end
+
+      # Socket implementation allows client to send data to server after FIN,
+      # but server will never receive this data.
+      # We correctly close socket from client side when FIN event received.
+      # Should be checked before send data to socket or recv data from socket.
+      def check_fin_signal
+        close if socket && !socket.closed? && fin_signal?
       end
 
       def socket
@@ -50,6 +71,19 @@ module JRPC
       end
 
       private
+
+      # when recv_nonblock(1) responds with empty string means that FIN event was received.
+      # in other cases it will return 1 byte string or raise EAGAINWaitReadable.
+      # MSG_PEEK means we do not move pointer when reading data.
+      # see https://apidock.com/ruby/BasicSocket/recv_nonblock
+      def fin_signal?
+        begin
+          resp = socket.recv_nonblock(1, Socket::MSG_PEEK)
+        rescue IO::EAGAINWaitReadable => _
+          resp = nil
+        end
+        resp == ''
+      end
 
       def clear_socket!
         return if @socket.nil?

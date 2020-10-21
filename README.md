@@ -24,7 +24,7 @@ TODO: Write usage instructions here
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/jrpc.
+Bug reports and pull requests are welcome on GitHub at https://github.com/didww/jrpc.
 
 
 ## License

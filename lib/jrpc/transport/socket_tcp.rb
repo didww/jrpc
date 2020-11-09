@@ -16,8 +16,11 @@ module JRPC
         received
       rescue Errno::EPIPE, EOFError => e
         # EPIPE, in this case, means that the data connection was unexpectedly terminated.
-        clear_socket!
+        close
         raise ReadFailedError, "#{e.class} #{e.message}"
+      rescue => e
+        close
+        raise e
       end
 
       def write(data, timeout = @write_timeout)
@@ -34,13 +37,11 @@ module JRPC
         length_written
       rescue Errno::EPIPE => e
         # EPIPE, in this case, means that the data connection was unexpectedly terminated.
-        clear_socket!
+        close
         raise WriteFailedError, "#{e.class} #{e.message}"
-      end
-
-      def close
-        return if @socket.nil?
-        socket.close
+      rescue => e
+        close
+        raise e
       end
 
       # Socket implementation allows client to send data to server after FIN,
@@ -48,9 +49,9 @@ module JRPC
       # So we consider socket closed when it have FIN event
       # and close it correctly from client side.
       def closed?
-        return true if @socket.nil? || socket.closed?
+        return true if @socket.nil?
 
-        if fin_signal?
+        if socket.closed? || fin_signal?
           close
           return true
         end
@@ -70,6 +71,14 @@ module JRPC
         @socket ||= build_socket
       end
 
+      # When socket is closed we need to cleanup internal @socket object,
+      # because we will receive "IOError closed stream" if we try to reconnect via same socket.
+      def close
+        return if @socket.nil?
+        @socket.close unless @socket.closed?
+        @socket = nil
+      end
+
       private
 
       # when recv_nonblock(1) responds with empty string means that FIN event was received.
@@ -83,12 +92,6 @@ module JRPC
           resp = nil
         end
         resp == ''
-      end
-
-      def clear_socket!
-        return if @socket.nil?
-        @socket.close unless @socket.closed?
-        @socket = nil
       end
 
       def set_timeout_to(socket, type, value)
@@ -115,7 +118,7 @@ module JRPC
           if IO.select(nil, [socket], nil, @connect_timeout)
             socket.connect_nonblock(full_addr)
           else
-            clear_socket!
+            close
             raise ConnectionFailedError, "Can't connect during #{@connect_timeout}"
           end
         end
@@ -123,8 +126,11 @@ module JRPC
       rescue Errno::EISCONN => _
         # already connected
       rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ETIMEDOUT, Errno::EPIPE => e
-        clear_socket!
+        close
         raise ConnectionFailedError, "#{e.class} #{e.message}"
+      rescue => e
+        close
+        raise e
       end
 
     end

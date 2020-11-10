@@ -26,19 +26,21 @@ module JRPC
                                                   connect_timeout: connect_timeout,
                                                   read_timeout: read_timeout,
                                                   write_timeout: write_timeout
-      begin
-        @transport.connect
-      rescue JRPC::Transport::SocketTcp::Error
-        raise ConnectionError, "Can't connect to #{@uri}"
-      end
+      connect_transport!
     end
 
     private
 
+    def connect_transport!
+      @transport.connect
+    rescue JRPC::Transport::SocketTcp::Error
+      raise ConnectionError, "Can't connect to #{@uri}"
+    end
+
     def ensure_connected
       if @transport.closed?
         logger.debug { 'Connecting transport...' }
-        @transport.connect
+        connect_transport!
         logger.debug { 'Connected.' }
       end
     end
@@ -85,6 +87,8 @@ module JRPC
       @transport.write Netstring.dump(request.to_s), timeout
     rescue ::SocketError
       raise ConnectionError, "Can't send request to #{uri}"
+    rescue JRPC::ConnectionClosedError
+      raise ConnectionError, "Connection to #{uri} was closed unexpectedly"
     end
 
     def receive_response(timeout)
@@ -95,6 +99,8 @@ module JRPC
       response.chomp(',')
     rescue ::SocketError
       raise ConnectionError, "Can't receive response from #{uri}"
+    rescue JRPC::ConnectionClosedError
+      raise ConnectionError, "Connection to #{uri} was closed unexpectedly"
     end
 
     def get_msg_length(timeout)

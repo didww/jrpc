@@ -2,13 +2,14 @@ module JRPC
   module Transport
     class SocketTcp < SocketBase
 
+      # @raise [JRPC::ConnectionClosedError] if socket was closed during data read.
       def read(length, timeout = @read_timeout)
         received = ''
         length_to_read = length
         while length_to_read > 0
           io_read, = IO.select([socket], [], [], timeout)
           raise ReadTimeoutError unless io_read
-          check_fin_signal
+          check_socket_state!
           chunk = io_read[0].read_nonblock(length_to_read)
           received += chunk
           length_to_read -= chunk.bytesize
@@ -23,13 +24,14 @@ module JRPC
         raise e
       end
 
+      # @raise [JRPC::ConnectionClosedError] if socket was closed during data write.
       def write(data, timeout = @write_timeout)
         length_written = 0
         data_to_write = data
         while data_to_write.bytesize > 0
           _, io_write, = IO.select([], [socket], [], timeout)
           raise WriteTimeoutError unless io_write
-          check_fin_signal
+          check_socket_state!
           chunk_length = io_write[0].write_nonblock(data_to_write)
           length_written += chunk_length
           data_to_write = data.byteslice(length_written, data.length)
@@ -44,7 +46,7 @@ module JRPC
         raise e
       end
 
-      # Socket implementation allows client to send data to server after FIN,
+      # Socket implementation allows client to send data to server after FIN event,
       # but server will never receive this data.
       # So we consider socket closed when it have FIN event
       # and close it correctly from client side.
@@ -59,12 +61,9 @@ module JRPC
         false
       end
 
-      # Socket implementation allows client to send data to server after FIN,
-      # but server will never receive this data.
-      # We correctly close socket from client side when FIN event received.
-      # Should be checked before send data to socket or recv data from socket.
-      def check_fin_signal
-        close if socket && !socket.closed? && fin_signal?
+      # @raise [JRPC::ConnectionClosedError] if socket is closed or FIN event received.
+      def check_socket_state!
+        raise JRPC::ConnectionClosedError if closed?
       end
 
       def socket

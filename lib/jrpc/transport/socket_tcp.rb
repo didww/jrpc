@@ -1,6 +1,10 @@
 module JRPC
   module Transport
     class SocketTcp < SocketBase
+      def initialize(options)
+        super
+        @tcp_md5_pass = options[:tcp_md5_pass]
+      end
 
       # @raise [JRPC::ConnectionClosedError] if socket was closed during data read.
       def read(length, timeout = @read_timeout)
@@ -100,10 +104,39 @@ module JRPC
         socket.setsockopt Socket::SOL_SOCKET, type, opt_val
       end
 
+      def set_tcp_md5(socket)
+        return if @tcp_md5_pass.nil?
+
+        tcp_md5_pass = @tcp_md5_pass.encode('utf-8')
+        host_u32 = @server.split(':').first.split('.').map(&:to_i).pack('CCCC')
+        #define TCP_MD5SIG		 14 /* TCP MD5 Signature (RFC2385) */
+        # struct tcp_md5sig
+        # {
+        #     struct sockaddr_storage tcpm_addr;		/* Address associated.  */
+        #     uint8_t	tcpm_flags;			/* Extension flags.  */
+        #     uint8_t	tcpm_prefixlen;			/* Address prefix.  */
+        #     uint16_t	tcpm_keylen;			/* Key length.  */
+        #     uint32_t	__tcpm_pad;			/* Zero.  */
+        #     uint8_t	tcpm_key[TCP_MD5SIG_MAXKEYLEN];	/* Key (binary).  */
+        # };
+        opt_val = [
+          Socket::AF_INET, # tcpm_addr.sin_family
+          0, # tcpm_addr.sin_port
+          host_u32, #tcpm_addr.sin_addr
+          nil, # zero padding tcpm_addr, tcpm_flags, tcpm_prefixlen
+          tcp_md5_pass.bytesize, #tcpm_keylen
+          0, # __tcpm_pad
+          tcp_md5_pass
+        ].pack('SSa4a122SLa80')
+        socket.setsockopt Socket::IPPROTO_TCP, 14, opt_val
+      end
+
       def build_socket
         host = @server.split(':').first
         addr = Socket.getaddrinfo(host, nil)
-        Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
+        socket = Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
+        set_tcp_md5(socket)
+        socket
       end
 
       def connect_socket

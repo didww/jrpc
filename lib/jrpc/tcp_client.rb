@@ -20,12 +20,14 @@ module JRPC
       write_timeout = @options.fetch(:write_timeout, 60) # default 60
       connect_retry_count = @options.fetch(:connect_retry_count, 10) # default 10
       @close_after_sent = @options.fetch(:close_after_sent, false)
+      tcp_md5_pass = @options[:tcp_md5_pass]
 
       @transport = JRPC::Transport::SocketTcp.new server: @uri,
                                                   connect_retry_count: connect_retry_count,
                                                   connect_timeout: connect_timeout,
                                                   read_timeout: read_timeout,
-                                                  write_timeout: write_timeout
+                                                  write_timeout: write_timeout,
+                                                  tcp_md5_pass: tcp_md5_pass
       connect_transport!
     end
 

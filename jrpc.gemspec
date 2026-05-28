@@ -19,6 +19,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'netstring', '~> 0'
   spec.add_dependency 'oj', '~> 3.0'
+  spec.add_dependency 'concurrent-ruby', '~> 1.2'
 
   spec.executables << 'jrpc'
   spec.executables << 'jrpc-shell'

@@ -1,4 +1,3 @@
-require 'spec_helper'
 require 'logger'
 require 'fake_transport'
 
@@ -177,7 +176,7 @@ describe JRPC::TcpClient do
 
   describe '#perform_request' do
     subject do
-      client.perform_request(perform_request_method, perform_request_options)
+      client.perform_request(perform_request_method, **perform_request_options)
     end
 
     let(:client) { JRPC::TcpClient.new('127.0.0.1:1234', client_options) }

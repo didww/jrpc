@@ -23,6 +23,10 @@ module JRPC
         @write_timeout = options.fetch(:write_timeout, nil)
       end
 
+      # Abstract interface. Subclasses must implement every method below; the bodies
+      # only exist to fail loudly if one is forgotten, so they carry no logic worth
+      # covering and are excluded from coverage via :nocov:.
+      # :nocov:
       def connect
         raise NotImplementedError
       end
@@ -50,6 +54,7 @@ module JRPC
       def socket
         raise NotImplementedError
       end
+      # :nocov:
     end
   end
 end

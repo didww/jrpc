@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 RSpec.describe JRPC::SharedClient::Registry do
   let(:registry) { described_class.new }
 

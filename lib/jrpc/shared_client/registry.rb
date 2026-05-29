@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module JRPC
   class SharedClient
     class Registry
@@ -25,10 +27,13 @@ module JRPC
 
       # Signals every ticket with error and clears the registry atomically.
       # Idempotent: tickets already in :done/:cancelled are skipped.
+      TERMINAL_STATES = %i[done cancelled].freeze
+
       def drain_all_with(error)
         tickets = @mutex.synchronize { @tickets.values.tap { @tickets.clear } }
         tickets.each do |ticket|
-          next if ticket.state == :done || ticket.state == :cancelled
+          next if TERMINAL_STATES.include?(ticket.state)
+
           ticket.signal_error(error)
         end
       end

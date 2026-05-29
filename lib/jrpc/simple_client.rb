@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module JRPC
   # NOT thread-safe: a SimpleClient instance must not be shared across threads or
   # fibers. It owns a single transport/socket plus an unsynchronized id counter, so
@@ -34,6 +36,7 @@ module JRPC
         response = Message.parse(raw)
         Message.validate_response!(response, id)
         raise Message.error_to_exception(response['error']) if response.key?('error')
+
         response['result']
       end
     end
@@ -52,6 +55,7 @@ module JRPC
 
     def close
       return true if @closed
+
       @transport.close
       @closed = true
       true

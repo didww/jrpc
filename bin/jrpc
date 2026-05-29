@@ -1,19 +1,19 @@
 #!/usr/bin/env ruby
-# coding: utf-8
+# frozen_string_literal: true
 
 require 'optparse'
 require 'jrpc'
 
 Options = Struct.new(
-    :host,
-    :port,
-    :type,
-    :method,
-    :params,
-    :debug,
-    :connect_timeout,
-    :read_timeout,
-    :write_timeout
+  :host,
+  :port,
+  :type,
+  :rpc_method,
+  :params,
+  :debug,
+  :connect_timeout,
+  :read_timeout,
+  :write_timeout
 )
 
 class Parser
@@ -73,7 +73,7 @@ class Parser
     end
 
     opt_parser.parse!(argv)
-    args.method = argv.first
+    args.rpc_method = argv.first
     args.params = argv[1..]
     args
   end
@@ -89,21 +89,21 @@ logger.debug { "Connecting to #{addr} ..." }
 client = JRPC::SimpleClient.new(
   addr,
   connect_timeout: options.connect_timeout,
-  read_timeout:    options.read_timeout,
-  write_timeout:   options.write_timeout,
-  logger:          logger
+  read_timeout: options.read_timeout,
+  write_timeout: options.write_timeout,
+  logger: logger
 )
 
 params = options.params.empty? ? nil : options.params
 
-logger.debug { "Sending #{options.type} #{options.method} #{params} ..." }
+logger.debug { "Sending #{options.type} #{options.rpc_method} #{params} ..." }
 
 if options.type == 'request'
-  response = client.request(options.method, params)
+  response = client.request(options.rpc_method, params)
   logger.debug { "Request was sent. Response: #{response.inspect}" }
   puts JSON.pretty_generate(response)
 else
-  client.notification(options.method, params)
+  client.notification(options.rpc_method, params)
   logger.debug { 'Notification was sent.' }
 end
 

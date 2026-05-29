@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-# coding: utf-8
+# frozen_string_literal: true
 
 require 'readline'
 require 'singleton'
@@ -20,18 +20,19 @@ class Command
   end
 
   attr_accessor :logger, :client, :help_usage
-  instance.logger = Logger.new(STDOUT)
+
+  instance.logger = Logger.new($stdout)
   instance.logger.level = Logger::INFO
   instance.help_usage = [
-      'Usage:',
-      '  connect host port',
-      '  disconnect',
-      '  request method param1 param2',
-      '  request method {"param1": 1, "param2": 2}',
-      '  notification method param1 param2',
-      '  notification method {"param1": 1, "param2": 2}',
-      '  help',
-      '  version'
+    'Usage:',
+    '  connect host port',
+    '  disconnect',
+    '  request method param1 param2',
+    '  request method {"param1": 1, "param2": 2}',
+    '  notification method param1 param2',
+    '  notification method {"param1": 1, "param2": 2}',
+    '  help',
+    '  version'
   ].join("\n")
 
   def cmd_help
@@ -47,9 +48,9 @@ class Command
     self.client = JRPC::SimpleClient.new(
       "#{host}:#{port}",
       connect_timeout: 5,
-      read_timeout:    5,
-      write_timeout:   60,
-      logger:          logger
+      read_timeout: 5,
+      write_timeout: 60,
+      logger: logger
     )
     'Connected.'
   rescue JRPC::Errors::Error => e
@@ -89,16 +90,18 @@ class Command
   end
 end
 
+EXIT_COMMANDS = %w[exit close quit].freeze
+
 puts 'Welcome to JRPC shell'
-while input = Readline.readline('> ', true)
-  if %w[exit close quit].include?(input)
+while (input = Readline.readline('> ', true))
+  if EXIT_COMMANDS.include?(input)
     break
   elsif input == 'hist'
     puts Readline::HISTORY.to_a
   elsif input == ''
     Readline::HISTORY.pop
   else
-    command, *args = input.split(' ')
+    command, *args = input.split
     puts Command.call(command, args)
   end
 end

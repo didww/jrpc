@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'json'
 
 module JRPC
@@ -41,9 +43,9 @@ module JRPC
 
       if has_error
         err = hash['error']
-        raise Errors::MalformedResponseError, "error must be a Hash" unless err.is_a?(Hash)
-        raise Errors::MalformedResponseError, "error.code must be an Integer" unless err['code'].is_a?(Integer)
-        raise Errors::MalformedResponseError, "error.message must be a String" unless err['message'].is_a?(String)
+        raise Errors::MalformedResponseError, 'error must be a Hash' unless err.is_a?(Hash)
+        raise Errors::MalformedResponseError, 'error.code must be an Integer' unless err['code'].is_a?(Integer)
+        raise Errors::MalformedResponseError, 'error.message must be a String' unless err['message'].is_a?(String)
       end
     end
 
@@ -51,12 +53,12 @@ module JRPC
       code = error_hash['code']
       message = error_hash['message']
       case code
-      when -32700 then Errors::ParseError.new(message)
-      when -32600 then Errors::InvalidRequest.new(message)
-      when -32601 then Errors::MethodNotFound.new(message)
-      when -32602 then Errors::InvalidParams.new(message)
-      when -32603 then Errors::InternalError.new(message)
-      when -32099..-32000 then Errors::InternalServerError.new(message, code: code)
+      when -32_700 then Errors::ParseError.new(message)
+      when -32_600 then Errors::InvalidRequest.new(message)
+      when -32_601 then Errors::MethodNotFound.new(message)
+      when -32_602 then Errors::InvalidParams.new(message)
+      when -32_603 then Errors::InternalError.new(message)
+      when -32_099..-32_000 then Errors::InternalServerError.new(message, code: code)
       else Errors::UnknownError.new(message, code: code)
       end
     end

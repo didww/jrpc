@@ -1,5 +1,8 @@
 # JRPC
 
+[![Gem Version](https://badge.fury.io/rb/jrpc.svg)](https://rubygems.org/gems/jrpc)
+[![CI](https://github.com/didww/jrpc/actions/workflows/ci.yml/badge.svg)](https://github.com/didww/jrpc/actions/workflows/ci.yml)
+
 A JSON-RPC 2.0 client for Ruby, over TCP, with netstring framing.
 
 JRPC ships two clients with sharp, separate responsibilities:

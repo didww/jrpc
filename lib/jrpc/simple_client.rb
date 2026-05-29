@@ -6,6 +6,8 @@ module JRPC
   # concurrent calls would interleave socket reads/writes and corrupt the framing
   # buffer. Use one instance per thread/fiber (or a pool of instances).
   class SimpleClient
+    include PayloadLogging
+
     attr_reader :server
 
     def initialize(server, **options)
@@ -31,8 +33,10 @@ module JRPC
 
       with_transport_error_handling do
         connect_if_needed!
+        log_sent(json)
         @transport.write_frame(json, timeout: write_timeout)
         raw = @transport.read_frame(timeout: read_timeout)
+        log_received(raw)
         response = Message.parse(raw)
         Message.validate_response!(response, id)
         raise Message.error_to_exception(response['error']) if response.key?('error')
@@ -48,6 +52,7 @@ module JRPC
 
       with_transport_error_handling do
         connect_if_needed!
+        log_sent(json)
         @transport.write_frame(json, timeout: write_timeout)
         nil
       end
@@ -66,6 +71,10 @@ module JRPC
     end
 
     private
+
+    def log_tag
+      'JRPC::SimpleClient'
+    end
 
     def connect_if_needed!
       @transport.connect if @transport.closed?

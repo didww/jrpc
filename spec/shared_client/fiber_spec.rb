@@ -127,7 +127,7 @@ RSpec.describe 'JRPC::SharedClient fiber callers' do
   end
 
   describe 'cancellation' do
-    let(:logger) { instance_double(Logger, error: nil) }
+    let(:logger) { instance_double(Logger, error: nil, debug: nil) }
 
     it 'cancels the ticket and orphans a late response when the fiber is stopped (Task#stop)' do
       client = build_client(logger: logger)

@@ -10,10 +10,10 @@ Options = Struct.new(
     :type,
     :method,
     :params,
-    :id,
     :debug,
-    :namespace,
-    :timeout
+    :connect_timeout,
+    :read_timeout,
+    :write_timeout
 )
 
 class Parser
@@ -22,7 +22,9 @@ class Parser
     args.host = '127.0.0.1'
     args.port = 7080
     args.type = 'request'
-    args.timeout = 5
+    args.connect_timeout = 5
+    args.read_timeout = 5
+    args.write_timeout = 60
 
     opt_parser = OptionParser.new do |opts|
       opts.banner = 'Usage: jrpc [options] method [params, ...]'
@@ -39,20 +41,20 @@ class Parser
         args.type = 'request'
       end
 
-      opts.on('-n', '--notification', 'Sets type to is notification (default false)') do
+      opts.on('-n', '--notification', 'Sets type to notification (default false)') do
         args.type = 'notification'
       end
 
-      opts.on('--namespace=NAMESPACE', 'Sets method namespace') do |namespace|
-        args.namespace = namespace
+      opts.on('--connect-timeout=TIMEOUT', Float, 'connect timeout in seconds (default 5)') do |t|
+        args.connect_timeout = t
       end
 
-      opts.on('--id=ID', 'Request ID (will be generated randomly by default)') do |id|
-        args.id = id
+      opts.on('--read-timeout=TIMEOUT', Float, 'read timeout in seconds (default 5)') do |t|
+        args.read_timeout = t
       end
 
-      opts.on('--timeout=TIMEOUT', 'timeout for socket') do |timeout|
-        args.timeout = timeout
+      opts.on('--write-timeout=TIMEOUT', Float, 'write timeout in seconds (default 60)') do |t|
+        args.write_timeout = t
       end
 
       opts.on('-d', '--debug', 'Debug output') do
@@ -72,9 +74,8 @@ class Parser
 
     opt_parser.parse!(argv)
     args.method = argv.first
-    args.params = argv[1..-1]
-    # puts "PARSED:\n#{args.inspect}\n#{argv.inspect}"
-    return args
+    args.params = argv[1..]
+    args
   end
 end
 
@@ -84,16 +85,26 @@ logger = Logger.new($stdout)
 logger.level = options.debug ? Logger::DEBUG : Logger::INFO
 addr = "#{options.host}:#{options.port}"
 logger.debug { "Connecting to #{addr} ..." }
-client = JRPC::TcpClient.new(addr, namespace: options.namespace, timeout: options.timeout, logger: logger)
 
-logger.debug { "Sending #{options.type} #{options.method} #{options.params} ..." }
-response = client.perform_request(options.method, params: options.params, type: options.type.to_sym)
+client = JRPC::SimpleClient.new(
+  addr,
+  connect_timeout: options.connect_timeout,
+  read_timeout:    options.read_timeout,
+  write_timeout:   options.write_timeout,
+  logger:          logger
+)
+
+params = options.params.empty? ? nil : options.params
+
+logger.debug { "Sending #{options.type} #{options.method} #{params} ..." }
 
 if options.type == 'request'
+  response = client.request(options.method, params)
   logger.debug { "Request was sent. Response: #{response.inspect}" }
   puts JSON.pretty_generate(response)
 else
-  logger.debug 'Notification was sent.'
+  client.notification(options.method, params)
+  logger.debug { 'Notification was sent.' }
 end
 
 client.close

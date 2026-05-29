@@ -27,9 +27,9 @@ class Command
       '  connect host port',
       '  disconnect',
       '  request method param1 param2',
-      '  request method {"param1": 1. "param2": 2}',
+      '  request method {"param1": 1, "param2": 2}',
       '  notification method param1 param2',
-      '  notification method {"param1": 1. "param2": 2}',
+      '  notification method {"param1": 1, "param2": 2}',
       '  help',
       '  version'
   ].join("\n")
@@ -44,9 +44,15 @@ class Command
 
   def cmd_connect(host, port)
     client&.close
-    self.client = JRPC::TcpClient.new("#{host}:#{port}", namespace: '', timeout: 5, logger: logger)
+    self.client = JRPC::SimpleClient.new(
+      "#{host}:#{port}",
+      connect_timeout: 5,
+      read_timeout:    5,
+      write_timeout:   60,
+      logger:          logger
+    )
     'Connected.'
-  rescue JRPC::Error => e
+  rescue JRPC::Errors::Error => e
     "ERROR: JRPC #{e.message}\n#{help_usage}"
   end
 
@@ -61,22 +67,24 @@ class Command
   def cmd_request(method, *params)
     return "ERROR: Not connected\n#{help_usage}" if client.nil?
 
-    params = JSON.parse(params.first) if params.size == 1 && params[0] == '{'
+    params = JSON.parse(params.first) if params.size == 1 && params[0].start_with?('{')
+    params = nil if params.empty?
 
-    response = client.perform_request(method, params: params)
+    response = client.request(method, params)
     JSON.pretty_generate(response)
-  rescue JRPC::Error => e
+  rescue JRPC::Errors::Error => e
     "ERROR: JRPC #{e.message}\n#{help_usage}"
   end
 
   def cmd_notification(method, *params)
     return "ERROR: Not connected\n#{help_usage}" if client.nil?
 
-    params = JSON.parse(params.first) if params.size == 1 && params[0] == '{'
+    params = JSON.parse(params.first) if params.size == 1 && params[0].start_with?('{')
+    params = nil if params.empty?
 
-    response = client.perform_request(method, params: params, type: :notification)
-    JSON.pretty_generate(response)
-  rescue JRPC::Error => e
+    client.notification(method, params)
+    'Notification sent.'
+  rescue JRPC::Errors::Error => e
     "ERROR: JRPC #{e.message}\n#{help_usage}"
   end
 end
@@ -88,7 +96,6 @@ while input = Readline.readline('> ', true)
   elsif input == 'hist'
     puts Readline::HISTORY.to_a
   elsif input == ''
-    # Remove blank lines from history
     Readline::HISTORY.pop
   else
     command, *args = input.split(' ')

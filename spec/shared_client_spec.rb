@@ -308,7 +308,7 @@ RSpec.describe JRPC::SharedClient do
 
   describe 'orphan and server-initiated messages' do
     it 'logs and drops a response for an unknown id without crashing' do
-      logger = instance_double(Logger, error: nil)
+      logger = instance_double(Logger, error: nil, debug: nil)
       c = build_client(logger: logger)
       transport.inject_response(ok_response('unknown-99', 42))
       sleep 0.05
@@ -317,7 +317,7 @@ RSpec.describe JRPC::SharedClient do
     end
 
     it 'drops a server-initiated notification (no id) without crashing' do
-      logger = instance_double(Logger, error: nil)
+      logger = instance_double(Logger, error: nil, debug: nil)
       c = build_client(logger: logger)
       transport.inject_response(JSON.generate({ 'jsonrpc' => '2.0', 'method' => 'ping' }))
       sleep 0.05
@@ -344,10 +344,31 @@ RSpec.describe JRPC::SharedClient do
     end
   end
 
+  # ── debug payload logging ──────────────────────────────────────────────────
+
+  describe 'debug payload logging' do
+    let(:logger) { instance_double(Logger, error: nil, debug: nil) }
+    let(:client) { build_client(logger: logger) }
+
+    it 'logs the sent and received raw payloads at debug' do
+      result = nil
+      caller = Thread.new { result = client.request(:sum, [1, 2]) }
+      wait_for { transport.frames_written.size >= 1 }
+      transport.inject_response(ok_response('test-1', 42))
+      caller.join(2)
+
+      expect(result).to eq(42)
+      expect(logger).to have_received(:debug)
+        .with('[JRPC::SharedClient] >> {"jsonrpc":"2.0","method":"sum","id":"test-1","params":[1,2]}')
+      expect(logger).to have_received(:debug)
+        .with("[JRPC::SharedClient] << #{ok_response('test-1', 42)}")
+    end
+  end
+
   # ── caller-thread interruption (Thread#raise mid-wait) ─────────────────────
 
   describe 'caller interrupted while waiting' do
-    let(:logger) { instance_double(Logger, error: nil) }
+    let(:logger) { instance_double(Logger, error: nil, debug: nil) }
     let(:client) { build_client(logger: logger) }
 
     it 'cancels the ticket, cleans up the registry, and treats a late response as orphan' do
@@ -471,7 +492,7 @@ RSpec.describe JRPC::SharedClient do
   # ── transport-thread crash ─────────────────────────────────────────────────
 
   describe 'transport-thread crash' do
-    let(:logger) { instance_double(Logger, error: nil) }
+    let(:logger) { instance_double(Logger, error: nil, debug: nil) }
     let(:client) { build_client(logger: logger) }
 
     # A non-transport StandardError from write_frame is not caught by the loop's

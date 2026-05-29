@@ -4,6 +4,11 @@
 
 **New**
 
+* Debug-level wire-payload logging. When a `logger:` is configured, both
+  `SimpleClient` and `SharedClient` emit every request/response payload (the raw
+  JSON frame, exactly as written/read) at `DEBUG`, tagged `[JRPC::SimpleClient]`
+  / `[JRPC::SharedClient]` with `>>` (sent) / `<<` (received) markers. No logger,
+  no logging.
 * `JRPC::Transport::Test` — an in-process transport double for testing code that
   uses JRPC, without a real server. Not required by default: `require
   'jrpc/transport/test'`, then inject via `transport:` on either client. Stub

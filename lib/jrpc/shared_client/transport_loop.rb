@@ -3,6 +3,8 @@
 module JRPC
   class SharedClient
     class TransportLoop
+      include PayloadLogging
+
       SELECT_FLOOR = 60.0
 
       def initialize(
@@ -130,6 +132,7 @@ module JRPC
         end
 
         begin
+          log_sent(ticket.payload)
           @transport.write_frame(ticket.payload, timeout: @write_timeout)
         rescue Transport::Base::Timeout => e
           err = Errors::Timeout.new("write timeout: #{e.message}")
@@ -170,6 +173,7 @@ module JRPC
           break if frame == :wait
 
           @last_rx_at = clock_now
+          log_received(frame)
 
           begin
             parsed = Message.parse(frame)
@@ -283,7 +287,11 @@ module JRPC
       end
 
       def log_error(msg)
-        @logger&.error("[JRPC::SharedClient] #{msg}")
+        @logger&.error("[#{log_tag}] #{msg}")
+      end
+
+      def log_tag
+        'JRPC::SharedClient'
       end
     end
   end

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'logger'
+
 # Minimal transport double that records activity and lets tests configure outcomes.
 class TransportDouble
   attr_reader :connects, :closes, :frames_written
@@ -384,6 +386,37 @@ RSpec.describe JRPC::SimpleClient do
         transport.queue_response(ok_response('wrong-id', 1))
         expect { client.request('ping') }.to raise_error(JRPC::Errors::MalformedResponseError, /id mismatch/)
       end
+    end
+  end
+
+  # ── debug payload logging ───────────────────────────────────────────────────
+
+  describe 'debug payload logging' do
+    # Minimal logger spy recording debug lines.
+    let(:logger) { instance_spy(Logger) }
+
+    it 'logs sent and received raw payloads at debug when a logger is set' do
+      transport.queue_response(ok_response('test-1', 99))
+      described_class.new('127.0.0.1:1234', transport: transport, id_prefix: 'test', logger: logger)
+                     .request('sum', [1, 2])
+
+      expect(logger).to have_received(:debug)
+        .with('[JRPC::SimpleClient] >> {"jsonrpc":"2.0","method":"sum","id":"test-1","params":[1,2]}')
+      expect(logger).to have_received(:debug)
+        .with("[JRPC::SimpleClient] << #{ok_response('test-1', 99)}")
+    end
+
+    it 'logs the sent notification payload' do
+      described_class.new('127.0.0.1:1234', transport: transport, id_prefix: 'test', logger: logger)
+                     .notification('log', { 'msg' => 'hi' })
+
+      expect(logger).to have_received(:debug)
+        .with('[JRPC::SimpleClient] >> {"jsonrpc":"2.0","method":"log","params":{"msg":"hi"}}')
+    end
+
+    it 'does not raise and logs nothing when no logger is set' do
+      transport.queue_response(ok_response('test-1', 1))
+      expect { client.request('ping') }.not_to raise_error
     end
   end
 end

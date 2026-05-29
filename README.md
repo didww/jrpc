@@ -41,7 +41,7 @@ client = JRPC::SimpleClient.new(
   autoclose:           false, # close the socket after every call
   id_prefix:           nil,   # random per instance if nil
   tcp_md5_pass:        nil,   # RFC2385 TCP MD5 Signature key (Linux-only); nil disables
-  logger:              nil
+  logger:              nil    # when set, logs every wire payload at DEBUG; nil disables
 )
 
 result = client.request(:sum, [1, 2])
@@ -77,7 +77,7 @@ client = JRPC::SharedClient.new(
   max_queue_size:         10_000, # bounded; pass nil for unbounded (opt-in OOM risk)
   id_prefix:              nil,
   tcp_md5_pass:           nil,    # RFC2385 TCP MD5 Signature key (Linux-only); nil disables
-  logger:                 nil
+  logger:                 nil     # when set, logs every wire payload at DEBUG; nil disables
 )
 
 result = client.request(:sum, [1, 2])

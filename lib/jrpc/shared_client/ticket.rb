@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'concurrent'
 
 module JRPC
@@ -60,7 +62,8 @@ module JRPC
       # Resolution aliases used by Registry/OutboundQueue and the transport loop.
       def signal_done(result:) = fulfill(result)
       def signal_error(err) = reject(err)
-      def signal_sent = fulfill(nil) # blocking notification: caller waits only for the send
+      # blocking notification: caller waits only for the send
+      def signal_sent = fulfill(nil)
 
       # Coarse state view kept for Registry, which skips already-settled tickets.
       def state

@@ -1,55 +1,59 @@
-RSpec.describe JRPC::SimpleClient do
-  # Minimal transport double that records activity and lets tests configure outcomes.
-  class TransportDouble
-    attr_reader :connects, :closes, :frames_written
+# frozen_string_literal: true
 
-    def initialize
-      @closed         = true
-      @connects       = 0
-      @closes         = 0
-      @frames_written = []
-      @read_queue     = []
-      @connect_error  = nil
-      @write_error    = nil
-      @read_error     = nil
-    end
+# Minimal transport double that records activity and lets tests configure outcomes.
+class TransportDouble
+  attr_reader :connects, :closes, :frames_written
 
-    def closed?
-      @closed
-    end
-
-    def connect
-      raise @connect_error if @connect_error
-      @connects += 1
-      @closed = false
-    end
-
-    def write_frame(bytes, timeout:)
-      raise @write_error if @write_error
-      @frames_written << bytes
-    end
-
-    def read_frame(timeout:)
-      raise @read_error if @read_error
-      @read_queue.shift
-    end
-
-    def close
-      @closes += 1
-      @closed = true
-    end
-
-    # helpers for test setup
-    def queue_response(json)  = @read_queue << json
-    def fail_on_connect(err)  = (@connect_error = err)
-    def fail_on_write(err)    = (@write_error = err)
-    def fail_on_read(err)     = (@read_error = err)
+  def initialize
+    @closed         = true
+    @connects       = 0
+    @closes         = 0
+    @frames_written = []
+    @read_queue     = []
+    @connect_error  = nil
+    @write_error    = nil
+    @read_error     = nil
   end
 
+  def closed?
+    @closed
+  end
+
+  def connect
+    raise @connect_error if @connect_error
+
+    @connects += 1
+    @closed = false
+  end
+
+  def write_frame(bytes, **)
+    raise @write_error if @write_error
+
+    @frames_written << bytes
+  end
+
+  def read_frame(**)
+    raise @read_error if @read_error
+
+    @read_queue.shift
+  end
+
+  def close
+    @closes += 1
+    @closed = true
+  end
+
+  def queue_response(json)  = @read_queue << json
+  def fail_on_connect(err)  = (@connect_error = err)
+  def fail_on_write(err)    = (@write_error = err)
+  def fail_on_read(err)     = (@read_error = err)
+end
+
+RSpec.describe JRPC::SimpleClient do
   let(:transport) { TransportDouble.new }
 
   # id_prefix: 'test' gives predictable ids: 'test-1', 'test-2', …
-  let(:client) { JRPC::SimpleClient.new("127.0.0.1:1234", transport: transport, id_prefix: 'test') }
+  let(:client) { described_class.new('127.0.0.1:1234', transport: transport, id_prefix: 'test') }
 
   def ok_response(id, result)
     JSON.generate({ 'jsonrpc' => '2.0', 'id' => id, 'result' => result })
@@ -183,7 +187,7 @@ RSpec.describe JRPC::SimpleClient do
   # ── autoclose ──────────────────────────────────────────────────────────────
 
   describe 'autoclose: true' do
-    let(:client) { JRPC::SimpleClient.new("127.0.0.1:1234", transport: transport, id_prefix: 'test', autoclose: true) }
+    let(:client) { described_class.new('127.0.0.1:1234', transport: transport, id_prefix: 'test', autoclose: true) }
 
     it 'closes the transport after each request' do
       transport.queue_response(ok_response('test-1', 1))
@@ -273,16 +277,17 @@ RSpec.describe JRPC::SimpleClient do
     it 'passes read_timeout override to transport.read_frame' do
       allow(transport).to receive(:read_frame).with(timeout: 99).and_return(ok_response('test-1', 1))
       client.request('ping', nil, read_timeout: 99)
+      expect(transport).to have_received(:read_frame).with(timeout: 99)
     end
 
     it 'passes write_timeout override to transport.write_frame' do
       transport.queue_response(ok_response('test-1', 1))
-      allow(transport).to receive(:write_frame).with(anything, timeout: 77)
+      expect(transport).to receive(:write_frame).with(anything, timeout: 77)
       client.request('ping', nil, write_timeout: 77)
     end
 
     it 'passes write_timeout override to transport.write_frame for notifications' do
-      allow(transport).to receive(:write_frame).with(anything, timeout: 55)
+      expect(transport).to receive(:write_frame).with(anything, timeout: 55)
       client.notification('log', nil, write_timeout: 55)
     end
   end
@@ -352,10 +357,10 @@ RSpec.describe JRPC::SimpleClient do
 
     context 'server-returned errors' do
       {
-        -32700 => JRPC::Errors::ParseError,
-        -32601 => JRPC::Errors::MethodNotFound,
-        -32602 => JRPC::Errors::InvalidParams,
-        0      => JRPC::Errors::UnknownError
+        -32_700 => JRPC::Errors::ParseError,
+        -32_601 => JRPC::Errors::MethodNotFound,
+        -32_602 => JRPC::Errors::InvalidParams,
+        0 => JRPC::Errors::UnknownError
       }.each do |code, klass|
         it "raises #{klass.name.split('::').last} for error code #{code}" do
           transport.queue_response(error_response('test-1', code, 'err'))

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module JRPC
   class SharedClient
     attr_reader :server
@@ -89,6 +91,7 @@ module JRPC
     def close(timeout: 5)
       @lifecycle_mutex.synchronize do
         return true if @status == :closed
+
         @status = :closing
       end
 
@@ -97,19 +100,31 @@ module JRPC
       joined = @transport_thread.join(timeout)
 
       unless joined
-        @transport.close rescue nil
+        begin
+          @transport.close
+        rescue StandardError
+          nil
+        end
         @transport_thread.join(1.0)
         @transport_thread.kill if @transport_thread.alive?
         @transport_thread.join
         # Forced kill: the loop never reached its graceful drain, so fail
         # whatever was still in flight. (A graceful exit drained itself; a
         # crash drained via on_crash. reject is idempotent in every case.)
-        drain_all(Errors::ConnectionError.new("client force-closed"))
+        drain_all(Errors::ConnectionError.new('client force-closed'))
       end
 
       # Safe now that the transport thread is guaranteed dead.
-      @wake_pipe_writer.close rescue nil
-      @wake_pipe_reader.close rescue nil
+      begin
+        @wake_pipe_writer.close
+      rescue StandardError
+        nil
+      end
+      begin
+        @wake_pipe_reader.close
+      rescue StandardError
+        nil
+      end
 
       @lifecycle_mutex.synchronize { @status = :closed }
       !joined.nil?
@@ -119,9 +134,9 @@ module JRPC
       @lifecycle_mutex.synchronize { @status == :closed }
     end
 
-    private
-
     WAIT_GRACE = 1.0 # caller-side backstop beyond the loop-enforced ttl
+
+    private
 
     def clock_now
       @clock.call
@@ -165,12 +180,15 @@ module JRPC
       @registry.drain_all_with(err)
       @outbound_queue.close_and_drain.each do |ticket|
         next if ticket.thread.nil?
+
         ticket.reject(err)
       end
     end
 
     def wake_transport
-      @wake_pipe_writer.write_nonblock('.') rescue nil
+      @wake_pipe_writer.write_nonblock('.')
+    rescue StandardError
+      nil
     end
   end
 end

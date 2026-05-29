@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 RSpec.describe JRPC::SharedClient::Ticket do
   def make_ticket(id: 'x-1', payload: '{}', thread: Thread.current, expires_at: nil)
     described_class.new(id: id, payload: payload, thread: thread, expires_at: expires_at)
@@ -22,7 +24,6 @@ RSpec.describe JRPC::SharedClient::Ticket do
       expect(t.thread).to eq(thread)
       expect(t.expires_at).to eq(9.9)
     end
-
   end
 
   describe '#alive?' do
@@ -34,7 +35,7 @@ RSpec.describe JRPC::SharedClient::Ticket do
     end
 
     it 'returns false when thread is dead' do
-      t = Thread.new {}
+      t = Thread.new { nil }
       t.join
       ticket = make_ticket(thread: t)
       expect(ticket.alive?).to be false
@@ -121,7 +122,10 @@ RSpec.describe JRPC::SharedClient::Ticket do
     it 'blocks until signal_done is called from another thread' do
       t = make_ticket
       result_seen = nil
-      waiter = Thread.new { t.wait; result_seen = t.result }
+      waiter = Thread.new do
+        t.wait
+        result_seen = t.result
+      end
       sleep 0.01
       t.signal_done(result: 99)
       waiter.join(1)

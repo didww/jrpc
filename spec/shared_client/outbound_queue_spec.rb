@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 RSpec.describe JRPC::SharedClient::OutboundQueue do
   let(:queue) { described_class.new }
 
@@ -85,7 +87,7 @@ RSpec.describe JRPC::SharedClient::OutboundQueue do
     end
 
     it 'works on an empty queue' do
-      expect { queue.each_snapshot { } }.not_to raise_error
+      expect { queue.each_snapshot { |_| nil } }.not_to raise_error
     end
 
     it 'snapshot is independent of later deletions' do

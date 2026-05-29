@@ -1,6 +1,8 @@
+# frozen_string_literal: true
+
 RSpec.describe JRPC::IdGenerator do
   describe 'single-threaded (thread_safe: false)' do
-    subject(:gen) { JRPC::IdGenerator.new(thread_safe: false) }
+    subject(:gen) { described_class.new(thread_safe: false) }
 
     it 'generates sequential ids' do
       id1 = gen.next
@@ -13,7 +15,7 @@ RSpec.describe JRPC::IdGenerator do
     end
 
     it 'uses the provided prefix' do
-      g = JRPC::IdGenerator.new(prefix: 'myprefix', thread_safe: false)
+      g = described_class.new(prefix: 'myprefix', thread_safe: false)
       expect(g.next).to eq('myprefix-1')
       expect(g.next).to eq('myprefix-2')
     end
@@ -24,8 +26,8 @@ RSpec.describe JRPC::IdGenerator do
     end
 
     it 'two generators have different prefixes by default' do
-      g1 = JRPC::IdGenerator.new
-      g2 = JRPC::IdGenerator.new
+      g1 = described_class.new
+      g2 = described_class.new
       p1, = g1.next.rpartition('-')
       p2, = g2.next.rpartition('-')
       expect(p1).not_to eq(p2)
@@ -33,10 +35,10 @@ RSpec.describe JRPC::IdGenerator do
   end
 
   describe 'thread-safe (thread_safe: true)' do
-    subject(:gen) { JRPC::IdGenerator.new(thread_safe: true) }
+    subject(:gen) { described_class.new(thread_safe: true) }
 
     it 'generates monotonically increasing ids in a single thread' do
-      ids = 100.times.map { gen.next }
+      ids = Array.new(100) { gen.next }
       counters = ids.map { |id| id.split('-').last.to_i }
       expect(counters).to eq((1..100).to_a)
     end
@@ -50,9 +52,9 @@ RSpec.describe JRPC::IdGenerator do
       collected    = Mutex.new
       all_ids      = []
 
-      threads = threads_n.times.map do
+      threads = Array.new(threads_n) do
         Thread.new do
-          local = per_thread.times.map { gen.next }
+          local = Array.new(per_thread) { gen.next }
           collected.synchronize { all_ids.concat(local) }
         end
       end

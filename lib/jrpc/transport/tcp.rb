@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'socket'
 
 module JRPC
@@ -24,13 +26,14 @@ module JRPC
           attempts_remaining -= 1
           raise if attempts_remaining <= 0
           raise if deadline && remaining_time(deadline) <= 0 # total budget spent
+
           sleep @connect_retry_interval
           retry
         end
       end
 
       def write_frame(bytes, timeout:)
-        raise ConnectionError, "transport closed" if @socket.nil?
+        raise ConnectionError, 'transport closed' if @socket.nil?
 
         frame = "#{bytes.bytesize}:#{bytes},"
         written = 0
@@ -38,10 +41,10 @@ module JRPC
 
         while written < frame.bytesize
           remaining = remaining_time(deadline)
-          close_and_raise_timeout!("write") if remaining && remaining <= 0
+          close_and_raise_timeout!('write') if remaining && remaining <= 0
 
-          _, writable, = IO.select([], [@socket], [], remaining)
-          close_and_raise_timeout!("write") unless writable
+          writable = @socket.wait_writable(remaining)
+          close_and_raise_timeout!('write') unless writable
 
           begin
             n = @socket.write_nonblock(frame.byteslice(written..))
@@ -50,7 +53,7 @@ module JRPC
             # socket not ready yet; loop back to IO.select. Rescue the module (not the
             # concrete IO::EAGAINWaitWritable) so IO::EWOULDBLOCKWaitWritable is also
             # caught on platforms where EAGAIN != EWOULDBLOCK (macOS/BSD).
-          rescue Errno::EPIPE, Errno::ECONNRESET, IOError, EOFError => e
+          rescue Errno::EPIPE, Errno::ECONNRESET, IOError => e
             close
             raise ConnectionError, "write failed: #{e.class}: #{e.message}"
           end
@@ -58,7 +61,7 @@ module JRPC
       end
 
       def read_frame(timeout:)
-        raise ConnectionError, "transport closed" if @socket.nil?
+        raise ConnectionError, 'transport closed' if @socket.nil?
 
         deadline = timeout ? monotonic_now + timeout : nil
 
@@ -67,17 +70,17 @@ module JRPC
           return result unless result == :wait
 
           remaining = remaining_time(deadline)
-          close_and_raise_timeout!("read") if remaining && remaining <= 0
+          close_and_raise_timeout!('read') if remaining && remaining <= 0
 
-          readable, = IO.select([@socket], [], [], remaining)
-          close_and_raise_timeout!("read") unless readable
+          readable = @socket.wait_readable(remaining)
+          close_and_raise_timeout!('read') unless readable
 
           fill_buffer
         end
       end
 
       def try_read_frame
-        raise ConnectionError, "transport closed" if @socket.nil?
+        raise ConnectionError, 'transport closed' if @socket.nil?
 
         # Parse first so already-buffered frames survive an EOF on the next read.
         result = try_parse_frame
@@ -89,7 +92,11 @@ module JRPC
       end
 
       def close
-        @socket&.close rescue nil
+        begin
+          @socket&.close
+        rescue StandardError
+          nil
+        end
         @socket = nil
         @read_buffer = ''.b
       end
@@ -98,9 +105,7 @@ module JRPC
         @socket.nil? || @socket.closed?
       end
 
-      def socket
-        @socket
-      end
+      attr_reader :socket
 
       private
 
@@ -108,7 +113,11 @@ module JRPC
       def connect_once(deadline)
         # Close any existing socket first so connecting on an already-connected
         # transport replaces it cleanly instead of orphaning the old file descriptor.
-        @socket&.close rescue nil
+        begin
+          @socket&.close
+        rescue StandardError
+          nil
+        end
         @socket = nil
 
         sock, sockaddr = build_socket
@@ -126,7 +135,7 @@ module JRPC
         @read_buffer << chunk.b
       rescue IO::WaitReadable
         # no data right now; caller already confirmed readable via IO.select
-      rescue EOFError, Errno::ECONNRESET, Errno::EPIPE, IOError => e
+      rescue Errno::ECONNRESET, Errno::EPIPE, IOError => e
         close
         raise ConnectionError, "read failed: #{e.class}: #{e.message}"
       end
@@ -138,7 +147,7 @@ module JRPC
         sockaddr = ::Socket.pack_sockaddr_in(port_str.to_i, addr_info[0][3])
         sock = ::Socket.new(family, ::Socket::SOCK_STREAM, 0)
         [sock, sockaddr]
-      rescue => e
+      rescue StandardError => e
         raise ConnectionError, "#{e.class}: #{e.message}"
       end
 
@@ -148,19 +157,23 @@ module JRPC
       rescue Errno::EISCONN
         true # already connected
       rescue IO::WaitWritable
-        _, writable, = IO.select(nil, [sock], nil, connect_wait_timeout(deadline))
+        writable = sock.wait_writable(connect_wait_timeout(deadline))
         unless writable
-          sock.close rescue nil
+          begin
+            sock.close
+          rescue StandardError
+            nil
+          end
           raise Timeout, "connect timed out to #{@server}"
         end
         false
         # loop again → next connect_nonblock call will return EISCONN or error
-      rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH, Errno::ENETUNREACH,
-        Errno::ETIMEDOUT, Errno::ECONNRESET => e
-        sock.close rescue nil
-        raise ConnectionError, "#{e.class}: #{e.message}"
-      rescue => e
-        sock.close rescue nil
+      rescue StandardError => e
+        begin
+          sock.close
+        rescue StandardError
+          nil
+        end
         raise ConnectionError, "#{e.class}: #{e.message}"
       end
 
@@ -170,6 +183,7 @@ module JRPC
       def connect_wait_timeout(deadline)
         bounds = [@connect_attempt_timeout, remaining_time(deadline)].compact
         return nil if bounds.empty?
+
         wait = bounds.min
         wait.negative? ? 0 : wait
       end
@@ -183,10 +197,11 @@ module JRPC
           unless @read_buffer.match?(/\A\d+\z/)
             raise MalformedFrame, "non-digit in length prefix: #{@read_buffer.byteslice(0, 32).inspect}"
           end
+
           return :wait
         end
 
-        raise MalformedFrame, "empty length prefix" if colon_idx == 0
+        raise MalformedFrame, 'empty length prefix' if colon_idx.zero?
 
         length_str = @read_buffer.byteslice(0, colon_idx)
         raise MalformedFrame, "non-digit in length prefix: #{length_str.inspect}" unless length_str.match?(/\A\d+\z/)
@@ -205,7 +220,7 @@ module JRPC
 
         data = @read_buffer.byteslice(colon_idx + 1, length).force_encoding(Encoding::UTF_8)
         # The line-194 guard guarantees bytesize > frame_end, so this byteslice is never nil.
-        @read_buffer = @read_buffer.byteslice(frame_end + 1..)
+        @read_buffer = @read_buffer.byteslice((frame_end + 1)..)
         data
       end
 
@@ -215,12 +230,13 @@ module JRPC
 
       def remaining_time(deadline)
         return nil unless deadline
+
         deadline - monotonic_now
       end
 
-      def close_and_raise_timeout!(op)
+      def close_and_raise_timeout!(operation)
         close
-        raise Timeout, "#{op} timed out on #{@server}"
+        raise Timeout, "#{operation} timed out on #{@server}"
       end
     end
   end

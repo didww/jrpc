@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module JRPC
   module Errors
     class Error < RuntimeError; end
@@ -26,44 +28,38 @@ module JRPC
 
     class ParseError < ServerError
       def initialize(message)
-        super(message, code: -32700)
+        super(message, code: -32_700)
       end
     end
 
     class InvalidRequest < ServerError
       def initialize(message)
-        super(message, code: -32600)
+        super(message, code: -32_600)
       end
     end
 
     class MethodNotFound < ServerError
       def initialize(message)
-        super(message, code: -32601)
+        super(message, code: -32_601)
       end
     end
 
     class InvalidParams < ServerError
       def initialize(message)
-        super(message, code: -32602)
+        super(message, code: -32_602)
       end
     end
 
     class InternalError < ServerError
       def initialize(message)
-        super(message, code: -32603)
+        super(message, code: -32_603)
       end
     end
 
     class InternalServerError < ServerError
-      def initialize(message, code:)
-        super(message, code: code)
-      end
     end
 
     class UnknownError < ServerError
-      def initialize(message, code:)
-        super(message, code: code)
-      end
     end
   end
 end

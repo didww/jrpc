@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module JRPC
   class SharedClient
     class TransportLoop
@@ -22,12 +24,12 @@ module JRPC
       end
 
       # Runs the transport loop. Calls on_crash.(err) on unexpected exception, then returns.
-      def run(&on_crash)
+      def run(&)
         main_loop
-      rescue => e
+      rescue StandardError => e
         log_error("transport thread crashed: #{e.class}: #{e.message}\n#{e.backtrace.join("\n")}")
         err = Errors::ConnectionError.new("transport thread crashed: #{e.class}: #{e.message}")
-        on_crash.call(err)
+        yield(err)
       end
 
       private
@@ -104,7 +106,7 @@ module JRPC
         loop do
           @wake_pipe_reader.read_nonblock(1024)
         end
-      rescue IO::EAGAINWaitReadable, IO::WaitReadable
+      rescue IO::WaitReadable
         # drained
       end
 
@@ -118,9 +120,9 @@ module JRPC
         if ticket.expired?(now)
           @registry.delete(ticket) if ticket.id
           if ticket.thread.nil?
-            log_error("fire_and_forget notification expired before send")
+            log_error('fire_and_forget notification expired before send')
           elsif ticket.alive?
-            ticket.reject(Errors::Timeout.new("ttl expired before send"))
+            ticket.reject(Errors::Timeout.new('ttl expired before send'))
           else
             log_error("ticket expired before send; owner gone: #{ticket.id.inspect}")
           end
@@ -132,7 +134,7 @@ module JRPC
         rescue Transport::Base::Timeout => e
           err = Errors::Timeout.new("write timeout: #{e.message}")
           signal_or_log(ticket, err)
-          drain_connection_error("write timeout; partial frame may have been sent")
+          drain_connection_error('write timeout; partial frame may have been sent')
           return
         rescue Transport::Base::ConnectionError, Transport::Base::Error => e
           err = Errors::ConnectionError.new(e.message)
@@ -149,18 +151,21 @@ module JRPC
         ticket.fulfill(nil) if ticket.id.nil?
       end
 
+      def read_next_frame
+        @transport.try_read_frame
+      rescue Transport::Base::MalformedFrame => e
+        log_error("framing error: #{e.message}")
+        drain_connection_error('framing corruption; stream resynchronized')
+        nil
+      rescue Transport::Base::ConnectionError, Transport::Base::Error => e
+        drain_connection_error(e.message)
+        nil
+      end
+
       def consume_inbound
         loop do
-          frame = begin
-            @transport.try_read_frame
-          rescue Transport::Base::MalformedFrame => e
-            log_error("framing error: #{e.message}")
-            drain_connection_error("framing corruption; stream resynchronized")
-            return
-          rescue Transport::Base::ConnectionError, Transport::Base::Error => e
-            drain_connection_error(e.message)
-            return
-          end
+          frame = read_next_frame
+          return unless frame
 
           break if frame == :wait
 
@@ -170,13 +175,13 @@ module JRPC
             parsed = Message.parse(frame)
           rescue Errors::MalformedResponseError => e
             log_error("JSON parse error on inbound frame: #{e.message}")
-            drain_connection_error("framing corruption; stream resynchronized")
+            drain_connection_error('framing corruption; stream resynchronized')
             return
           end
 
           id = parsed['id']
           if id.nil?
-            log_error("server-initiated message received (no id), dropping")
+            log_error('server-initiated message received (no id), dropping')
             next
           end
 
@@ -215,7 +220,7 @@ module JRPC
           next unless ticket
 
           if ticket.alive?
-            ticket.reject(Errors::Timeout.new("ttl expired"))
+            ticket.reject(Errors::Timeout.new('ttl expired'))
           else
             log_error("expired ticket #{id.inspect} owner thread dead; dropping")
           end
@@ -223,11 +228,12 @@ module JRPC
 
         @outbound_queue.each_snapshot do |ticket|
           next unless ticket.expired?(now)
+
           @outbound_queue.delete(ticket)
           if ticket.thread.nil?
-            log_error("fire_and_forget notification expired in queue")
+            log_error('fire_and_forget notification expired in queue')
           elsif ticket.alive?
-            ticket.reject(Errors::Timeout.new("ttl expired"))
+            ticket.reject(Errors::Timeout.new('ttl expired'))
           else
             log_error("expired queued ticket #{ticket.id.inspect} owner thread dead; dropping")
           end
@@ -254,7 +260,11 @@ module JRPC
       end
 
       def drain_connection_error(message)
-        @transport.close rescue nil
+        begin
+          @transport.close
+        rescue StandardError
+          nil
+        end
         err = Errors::ConnectionError.new(message)
         @registry.drain_all_with(err)
         @outbound_queue.each_snapshot do |ticket|

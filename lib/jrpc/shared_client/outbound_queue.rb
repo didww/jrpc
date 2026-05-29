@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module JRPC
   class SharedClient
     class OutboundQueue
@@ -13,6 +15,7 @@ module JRPC
         @mutex.synchronize do
           raise Errors::ClientError, 'queue closed' if @closed
           raise Errors::ClientError, 'queue full' if @capacity && @arr.size >= @capacity
+
           @arr << ticket
         end
       end
@@ -23,9 +26,9 @@ module JRPC
       end
 
       # Yields each ticket from a snapshot; does not hold the mutex during the block.
-      def each_snapshot(&blk)
+      def each_snapshot(&)
         snapshot = @mutex.synchronize { @arr.dup }
-        snapshot.each(&blk)
+        snapshot.each(&)
       end
 
       # Removes by object identity. Returns true if removed, false if not found.
@@ -33,6 +36,7 @@ module JRPC
         @mutex.synchronize do
           idx = @arr.index { |t| t.equal?(ticket) }
           return false unless idx
+
           @arr.delete_at(idx)
           true
         end
@@ -41,7 +45,7 @@ module JRPC
       # Returns the earliest expires_at across all queued tickets, or nil.
       def earliest_deadline
         @mutex.synchronize do
-          deadlines = @arr.map(&:expires_at).compact
+          deadlines = @arr.filter_map(&:expires_at)
           deadlines.min
         end
       end

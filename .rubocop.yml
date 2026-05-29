@@ -1,0 +1,228 @@
+plugins:
+  - rubocop-performance
+  - rubocop-rspec
+  - rubocop-rake
+
+AllCops:
+  TargetRubyVersion: 3.3
+  DisplayStyleGuide: true
+  ExtraDetails: true
+  NewCops: enable
+  Exclude:
+    - 'vendor/**/*'
+    - 'tmp/**/*'
+
+##################### Bundler ###############################
+
+Bundler/OrderedGems:
+  Exclude:
+    - Gemfile
+
+##################### Gemspec ###############################
+
+Gemspec/RequireMFA:
+  Enabled: false
+
+Gemspec/RequiredRubyVersion:
+  Enabled: false
+
+##################### Lint ###############################
+
+Lint/UnderscorePrefixedVariableName:
+  Enabled: false
+
+Lint/AmbiguousOperatorPrecedence:
+  Enabled: false
+
+Lint/MissingSuper:
+  Enabled: false
+
+Lint/AmbiguousBlockAssociation:
+  Exclude:
+    - 'spec/**/*.rb'
+
+Lint/UselessAccessModifier:
+  Enabled: true
+  MethodCreatingMethods:
+    - delegate
+    - attribute
+    - service_entity
+    - parameter
+    - parameters
+  ContextCreatingMethods:
+    - concerning
+    - included
+
+##################### Layout #############################
+
+Layout/LineLength:
+  Max: 311
+
+##################### Performance #########################
+
+Performance/CollectionLiteralInLoop:
+  Exclude:
+    - 'spec/**/*.rb'
+
+##################### Style ###############################
+
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: single_quotes
+
+Style/KeywordParametersOrder:
+  Enabled: false
+
+Style/IfUnlessModifier:
+  Enabled: false
+
+Style/WhenThen:
+  Enabled: false
+
+Style/SafeNavigation:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
+
+Style/SymbolArray:
+  Enabled: false
+
+Style/HashAsLastArrayItem:
+  Enabled: false
+
+Style/ClassAndModuleChildren:
+  Enabled: false
+
+Style/GuardClause:
+  Enabled: false
+
+Style/Lambda:
+  Enabled: false
+  EnforcedStyle: literal
+
+Style/WordArray:
+  Enabled: false
+
+Style/BlockDelimiters:
+  Enabled: true
+  EnforcedStyle: braces_for_chaining
+
+Style/InvertibleUnlessCondition:
+  Enabled: true
+  InverseMethods:
+    :!=: :==
+    :>: :<=
+    :<=: :>
+    :<: :>=
+    :>=: :<
+    :!~: :=~
+    :zero?: :nonzero?
+    :nonzero?: :zero?
+    :any?: :none?
+    :none?: :any?
+    :even?: :odd?
+    :odd?: :even?
+    :present?: :blank?
+    :blank?: :present?
+
+##################### Metrics #############################
+
+Metrics/PerceivedComplexity:
+  Max: 45
+
+Metrics/ClassLength:
+  Max: 1060
+
+Metrics/BlockNesting:
+  Max: 5
+
+Metrics/BlockLength:
+  Enabled: false
+
+Metrics/CyclomaticComplexity:
+  Max: 45
+
+Metrics/MethodLength:
+  Enabled: false
+
+Metrics/ModuleLength:
+  Enabled: false
+
+Metrics/AbcSize:
+  Max: 241
+
+Metrics/ParameterLists:
+  Max: 9
+
+##################### Naming ##############################
+
+Naming/MethodParameterName:
+  AllowedNames:
+    - "iv"
+    - "by"
+    - "to"
+    - "id"
+    - "io"
+    - "on"
+
+Naming/VariableNumber:
+  Enabled: false
+
+Naming/PredicatePrefix:
+  Enabled: false
+
+Naming/PredicateMethod:
+  Enabled: false
+
+##################### RSpec ###############################
+
+RSpec/NamedSubject:
+  Enabled: false
+
+RSpec/MultipleMemoizedHelpers:
+  Enabled: false
+
+RSpec/ExampleLength:
+  Max: 141
+
+RSpec/MultipleExpectations:
+  Max: 79
+
+RSpec/DescribeClass:
+  Enabled: false
+
+RSpec/MessageSpies:
+  Enabled: false
+
+RSpec/SharedExamples:
+  Enabled: false
+
+RSpec/NestedGroups:
+  Max: 18
+
+RSpec/ContextWording:
+  Enabled: false
+
+RSpec/ExampleWording:
+  Enabled: false
+
+RSpec/ExpectChange:
+  Enabled: false
+
+RSpec/AnyInstance:
+  Enabled: false
+
+RSpec/SpecFilePathFormat:
+  Enabled: false
+
+RSpec/IndexedLet:
+  Enabled: false
+
+RSpec/ExpectInLet:
+  Enabled: true
+
+RSpec/IncludeExamples:
+  Enabled: false

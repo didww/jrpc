@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 RSpec.describe JRPC::Errors do
   describe 'hierarchy' do
     it 'Error is a RuntimeError' do
@@ -27,7 +29,7 @@ RSpec.describe JRPC::Errors do
     %w[ParseError InvalidRequest MethodNotFound InvalidParams InternalError
        InternalServerError UnknownError].each do |name|
       it "#{name} < ServerError" do
-        klass = JRPC::Errors.const_get(name)
+        klass = described_class.const_get(name)
         expect(klass.ancestors).to include(JRPC::Errors::ServerError)
       end
     end
@@ -48,10 +50,10 @@ RSpec.describe JRPC::Errors do
       begin
         begin
           raise original
-        rescue => _
-          raise JRPC::Errors::ConnectionError.new('connection lost')
+        rescue StandardError => _e
+          raise described_class, 'connection lost'
         end
-      rescue => e
+      rescue StandardError => e
         err = e
       end
       expect(err.message).to eq('connection lost')
@@ -59,33 +61,33 @@ RSpec.describe JRPC::Errors do
     end
 
     it 'cause defaults to nil' do
-      err = JRPC::Errors::ConnectionError.new('oops')
+      err = described_class.new('oops')
       expect(err.cause).to be_nil
     end
   end
 
   describe JRPC::Errors::ServerError do
     it 'stores code' do
-      err = JRPC::Errors::ServerError.new('bad', code: -99)
+      err = described_class.new('bad', code: -99)
       expect(err.code).to eq(-99)
     end
 
     it 'code defaults to nil' do
-      err = JRPC::Errors::ServerError.new('bad')
+      err = described_class.new('bad')
       expect(err.code).to be_nil
     end
   end
 
   describe 'fixed-code server errors' do
     {
-      ParseError: -32700,
-      InvalidRequest: -32600,
-      MethodNotFound: -32601,
-      InvalidParams: -32602,
-      InternalError: -32603,
+      ParseError: -32_700,
+      InvalidRequest: -32_600,
+      MethodNotFound: -32_601,
+      InvalidParams: -32_602,
+      InternalError: -32_603
     }.each do |name, expected_code|
       it "#{name} has code #{expected_code}" do
-        err = JRPC::Errors.const_get(name).new('msg')
+        err = described_class.const_get(name).new('msg')
         expect(err.code).to eq(expected_code)
       end
     end
@@ -93,21 +95,21 @@ RSpec.describe JRPC::Errors do
 
   describe JRPC::Errors::InternalServerError do
     it 'stores the provided code' do
-      err = JRPC::Errors::InternalServerError.new('oops', code: -32050)
-      expect(err.code).to eq(-32050)
+      err = described_class.new('oops', code: -32_050)
+      expect(err.code).to eq(-32_050)
     end
   end
 
   describe JRPC::Errors::UnknownError do
     it 'stores the provided code' do
-      err = JRPC::Errors::UnknownError.new('what', code: 42)
+      err = described_class.new('what', code: 42)
       expect(err.code).to eq(42)
     end
   end
 
   describe JRPC::Errors::MalformedResponseError do
     it 'code is nil' do
-      err = JRPC::Errors::MalformedResponseError.new('bad frame')
+      err = described_class.new('bad frame')
       expect(err.code).to be_nil
     end
   end

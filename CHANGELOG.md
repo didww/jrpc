@@ -4,6 +4,15 @@
 
 **New**
 
+* `JRPC::Transport::Test` — an in-process transport double for testing code that
+  uses JRPC, without a real server. Not required by default: `require
+  'jrpc/transport/test'`, then inject via `transport:` on either client. Stub
+  methods with `on('method') { |params| ... }` (return value becomes the result;
+  raise a `JRPC::Errors::ServerError` for an error response, or a transport error
+  to simulate a socket failure); records `requests`/`notifications`/`sent` for
+  assertions. A raw escape hatch (`push_response`/`push_raise`, `strict: false`)
+  covers malformed-response, id-mismatch, and orphan-frame cases. Works with both
+  `SimpleClient` and `SharedClient`. (Closes #10.)
 * Optional TCP MD5 Signature (RFC2385) support. Pass `tcp_md5_pass:` to
   `SimpleClient`/`SharedClient` (or the transport directly) to authenticate the
   connection with a per-peer MD5 key. Linux-only (`TCP_MD5SIG`); the key is

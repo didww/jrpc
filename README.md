@@ -189,6 +189,55 @@ client = JRPC::SimpleClient.new("10.0.0.2:1234", tcp_md5_pass: "shared-secret")
 - The key is installed on the socket **before** connect, so it also protects the
   handshake itself. It survives reconnects (reaping, connection drops) transparently.
 
+## Testing
+
+`JRPC::Transport::Test` is an in-process transport double for testing code that
+talks to a JSON-RPC server, without standing up a real one. It is **not** loaded
+by default — require it explicitly from your test setup:
+
+```ruby
+require 'jrpc/transport/test'
+
+transport = JRPC::Transport::Test.new
+transport.on('sum') { |params| params['a'] + params['b'] }
+
+client = JRPC::SimpleClient.new('test', transport: transport)
+client.request('sum', { 'a' => 1, 'b' => 2 }) # => 3
+
+transport.last_request # => { "jsonrpc" => "2.0", "method" => "sum", "params" => {...}, "id" => "..." }
+```
+
+Inject it through the `transport:` option of either `SimpleClient` or `SharedClient`.
+
+**Handlers** are the high-level API. A handler's return value is encoded as a result
+response echoing the request id. Raise to produce other outcomes:
+
+```ruby
+# JSON-RPC error response (mapped back to the matching JRPC::Errors class on the caller):
+transport.on('lookup') { raise JRPC::Errors::MethodNotFound, 'no such method' }
+
+# Simulated socket-level failure, raised when the client reads the response:
+transport.on('flaky') { raise JRPC::Transport::Base::ConnectionError, 'peer reset' }
+```
+
+In **strict mode (the default)** a request for a method with no handler raises
+`JRPC::Transport::Test::UnexpectedRequest` at write time, so a missing stub fails
+loudly instead of hanging. Pass `strict: false` to drive reads entirely with the
+raw escape hatch:
+
+```ruby
+transport = JRPC::Transport::Test.new(strict: false)
+# Feed literal response frames — for malformed responses, id mismatches, orphans:
+transport.push_response({ 'jsonrpc' => '2.0', 'id' => 'abc', 'result' => 42 })
+transport.push_raise(JRPC::Transport::Base::MalformedFrame.new('garbage'))
+```
+
+Other helpers: `fail_connect(error)` arms `connect` to raise; `requests`,
+`notifications`, and `sent` expose recordings for assertions; `reset` clears
+recordings and queued frames (keeping handlers). The transport opens a Unix
+socketpair so `SharedClient`'s `IO.select` loop works — call `shutdown` (e.g. in an
+`after` hook) for deterministic FD cleanup, or let the GC finalizer reclaim it.
+
 ## CLI tools
 
 Two executables ship with the gem:

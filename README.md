@@ -40,6 +40,7 @@ client = JRPC::SimpleClient.new(
   connect_retry_count: 0,     # retries after the first failed connect
   autoclose:           false, # close the socket after every call
   id_prefix:           nil,   # random per instance if nil
+  tcp_md5_pass:        nil,   # RFC2385 TCP MD5 Signature key (Linux-only); nil disables
   logger:              nil
 )
 
@@ -75,6 +76,7 @@ client = JRPC::SharedClient.new(
   default_ttl:            30,     # per-message lifetime, seconds
   max_queue_size:         10_000, # bounded; pass nil for unbounded (opt-in OOM risk)
   id_prefix:              nil,
+  tcp_md5_pass:           nil,    # RFC2385 TCP MD5 Signature key (Linux-only); nil disables
   logger:                 nil
 )
 
@@ -163,6 +165,29 @@ JRPC uses the stdlib `json`. To swap in [oj](https://github.com/ohler55/oj) for 
 require 'oj'
 Oj.mimic_JSON
 ```
+
+## TCP MD5 Signature (RFC2385)
+
+Both clients accept `tcp_md5_pass:` to enable per-connection authentication via the
+[TCP MD5 Signature option](https://www.rfc-editor.org/rfc/rfc2385). The kernel signs and
+verifies every TCP segment with `MD5(key + segment + addresses/ports)`; a peer with a
+mismatched or absent key has its segments silently dropped, so the handshake never
+completes.
+
+```ruby
+client = JRPC::SimpleClient.new("10.0.0.2:1234", tcp_md5_pass: "shared-secret")
+```
+
+- **Linux-only.** It relies on the `TCP_MD5SIG` socket option (and a kernel built with
+  `CONFIG_TCP_MD5SIG`). When `tcp_md5_pass` is set on a platform/kernel without it, the
+  first connect raises `ConnectionError` — the option never silently no-ops.
+- **The server must be configured with the same key for this client's address.** JRPC
+  only sets the client side; the peer (e.g. a router/BGP-style endpoint, or another
+  socket with a matching `TCP_MD5SIG`) must agree on the key.
+- **Key length is capped at 80 bytes** (`TCP_MD5SIG_MAXKEYLEN`); a longer key raises
+  `ConnectionError`.
+- The key is installed on the socket **before** connect, so it also protects the
+  handshake itself. It survives reconnects (reaping, connection drops) transparently.
 
 ## CLI tools
 

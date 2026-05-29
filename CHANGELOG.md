@@ -2,6 +2,14 @@
 
 ### Unreleased
 
+**New**
+
+* Optional TCP MD5 Signature (RFC2385) support. Pass `tcp_md5_pass:` to
+  `SimpleClient`/`SharedClient` (or the transport directly) to authenticate the
+  connection with a per-peer MD5 key. Linux-only (`TCP_MD5SIG`); the key is
+  installed on the socket before connect, and a connect on a kernel/platform
+  without `TCP_MD5SIG` raises `ConnectionError`.
+
 ### 2.0.0
 
 Full rewrite. JRPC 2.0 is not API-compatible with 1.x.

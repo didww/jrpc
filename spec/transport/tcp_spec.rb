@@ -528,4 +528,84 @@ RSpec.describe JRPC::Transport::Tcp do
       srv.close
     end
   end
+
+  describe 'TCP MD5 Signature (RFC2385) via tcp_md5_pass' do
+    include TcpMd5Helpers
+
+    it 'round-trips a frame when the key matches the server' do
+      skip 'TCP_MD5SIG unsupported on this host' unless tcp_md5_supported?
+
+      key = 'shared-secret'
+      srv = md5_server(key)
+      port = srv.local_address.ip_port
+      acceptor = Thread.new do
+        conn, = srv.accept
+        conn.recv(64) # consume the request frame
+        conn.write(ns_frame('pong'))
+        conn
+      end
+
+      t = described_class.new("127.0.0.1:#{port}", tcp_md5_pass: key, connect_timeout: 5)
+      t.connect
+      t.write_frame('ping', timeout: 5)
+      expect(t.read_frame(timeout: 5)).to eq('pong')
+
+      t.close
+      acceptor.value.close
+      srv.close
+    end
+
+    it 'fails to connect when the key does not match the server (kernel drops the handshake)' do
+      skip 'TCP_MD5SIG unsupported on this host' unless tcp_md5_supported?
+
+      srv = md5_server('right-key')
+      port = srv.local_address.ip_port
+      acceptor = Thread.new do
+        srv.accept
+      rescue StandardError
+        nil
+      end
+
+      t = described_class.new("127.0.0.1:#{port}",
+                              tcp_md5_pass: 'wrong-key',
+                              connect_timeout: 1,
+                              connect_retry_count: 0)
+      expect { t.connect }.to raise_error(Transport::Base::Timeout)
+
+      acceptor.kill
+      srv.close
+    end
+
+    it 'raises ConnectionError for a key longer than the 80-byte kernel maximum' do
+      skip 'TCP_MD5SIG unsupported on this host' unless tcp_md5_supported?
+
+      t = described_class.new('127.0.0.1:9', tcp_md5_pass: 'x' * 81, connect_retry_count: 0)
+      expect { t.connect }.to raise_error(Transport::Base::ConnectionError, /max is 80/)
+    end
+
+    it 'normalizes a non-String tcp_md5_pass to ConnectionError' do
+      skip 'TCP_MD5SIG unsupported on this host' unless tcp_md5_supported?
+
+      t = described_class.new('127.0.0.1:9', tcp_md5_pass: 12_345, connect_retry_count: 0)
+      expect { t.connect }.to raise_error(Transport::Base::ConnectionError, /invalid tcp_md5_pass/)
+    end
+
+    it 'raises ConnectionError when TCP_MD5SIG is unavailable on the platform' do
+      stub_const('JRPC::Transport::Tcp::TCP_MD5SIG', nil)
+      t = described_class.new('127.0.0.1:9', tcp_md5_pass: 'key', connect_retry_count: 0)
+      expect { t.connect }.to raise_error(Transport::Base::ConnectionError, /unsupported on this platform/)
+    end
+
+    it 'leaves connections unsigned (and connectable) when tcp_md5_pass is not set' do
+      srv = open_server
+      port = server_port(srv)
+      Thread.new { srv.accept }
+
+      t = described_class.new("127.0.0.1:#{port}")
+      t.connect
+      expect(t.closed?).to be false
+      t.close
+      srv.close
+    end
+  end
 end

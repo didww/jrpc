@@ -16,3 +16,6 @@ gem 'rubocop', '~> 1.21'
 gem 'rubocop-performance'
 gem 'rubocop-rspec'
 gem 'rubocop-rake', '~> 0.7.1'
+
+gem 'simplecov', '~> 0.22', require: false
+gem 'simplecov-cobertura', '~> 3.1', require: false

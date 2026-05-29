@@ -21,6 +21,9 @@ module JRPC
         @connect_retry_count = options.fetch(:connect_retry_count, 0)
         @connect_retry_interval = options.fetch(:connect_retry_interval, 0.5)
         @write_timeout = options.fetch(:write_timeout, nil)
+        # Optional RFC2385 TCP MD5 Signature key. nil disables it. When set, the
+        # transport installs it on the socket before connect (Linux-only). See Tcp.
+        @tcp_md5_pass = options.fetch(:tcp_md5_pass, nil)
       end
 
       # Abstract interface. Subclasses must implement every method below; the bodies

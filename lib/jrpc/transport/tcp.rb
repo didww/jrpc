@@ -11,6 +11,13 @@ module JRPC
       Timeout = Base::Timeout
       MalformedFrame = Base::MalformedFrame
 
+      # RFC2385 TCP MD5 Signature. TCP_MD5SIG is a Linux socket option (IPPROTO_TCP
+      # level); it is absent on platforms that don't support it, in which case the
+      # transport raises ConnectionError when a key is requested. The kernel caps the
+      # key at 80 bytes (TCP_MD5SIG_MAXKEYLEN, not exported as a Ruby constant).
+      TCP_MD5SIG = defined?(::Socket::TCP_MD5SIG) ? ::Socket::TCP_MD5SIG : nil
+      TCP_MD5SIG_MAXKEYLEN = 80
+
       def initialize(server, **options)
         super
         @socket = nil
@@ -121,6 +128,7 @@ module JRPC
         @socket = nil
 
         sock, sockaddr = build_socket
+        apply_tcp_md5sig!(sock, sockaddr) if @tcp_md5_pass
 
         loop do
           break if try_connect_nonblock(sock, sockaddr, deadline)
@@ -149,6 +157,47 @@ module JRPC
         [sock, sockaddr]
       rescue StandardError => e
         raise ConnectionError, "#{e.class}: #{e.message}"
+      end
+
+      # Install the RFC2385 TCP MD5 Signature key on the socket *before* connect, keyed
+      # to the peer at +peer_sockaddr+. The kernel then signs and verifies every segment
+      # of the connection; a peer with a mismatched (or absent) key has its segments
+      # silently dropped, so the handshake never completes. Linux-only. Any failure
+      # — unsupported platform, oversized key, or a setsockopt error — closes the
+      # just-built socket (no fd leak) and raises ConnectionError, since a security
+      # option that silently fails to apply is worse than a refused connection.
+      def apply_tcp_md5sig!(sock, peer_sockaddr)
+        raise ConnectionError, 'tcp_md5_pass set but TCP_MD5SIG is unsupported on this platform' if TCP_MD5SIG.nil?
+
+        key = @tcp_md5_pass.b
+        if key.bytesize > TCP_MD5SIG_MAXKEYLEN
+          raise ConnectionError, "tcp_md5_pass is #{key.bytesize} bytes; max is #{TCP_MD5SIG_MAXKEYLEN}"
+        end
+
+        # struct tcp_md5sig: sockaddr_storage(128) + flags(u8) + prefixlen(u8) +
+        # keylen(u16) + ifindex(u32) + key[80]. Basic per-peer mode leaves
+        # flags/prefixlen/ifindex zero; keylen/ifindex are native byte order.
+        addr = peer_sockaddr.b.ljust(128, "\x00".b)
+        meta = [0, 0, key.bytesize, 0].pack('CCSL')
+        keybuf = key.ljust(TCP_MD5SIG_MAXKEYLEN, "\x00".b)
+        sock.setsockopt(::Socket::IPPROTO_TCP, TCP_MD5SIG, addr + meta + keybuf)
+      rescue ConnectionError
+        close_socket(sock)
+        raise
+      rescue SystemCallError => e
+        close_socket(sock)
+        raise ConnectionError, "failed to set TCP MD5 signature (RFC2385): #{e.class}: #{e.message}"
+      rescue StandardError => e
+        # Any other failure (e.g. a non-String tcp_md5_pass that doesn't respond
+        # to #b) still closes the socket and normalises to ConnectionError.
+        close_socket(sock)
+        raise ConnectionError, "invalid tcp_md5_pass: #{e.class}: #{e.message}"
+      end
+
+      def close_socket(sock)
+        sock&.close
+      rescue StandardError
+        nil
       end
 
       def try_connect_nonblock(sock, sockaddr, deadline)

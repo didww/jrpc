@@ -3,83 +3,8 @@
 require 'logger'
 require 'socket'
 
-# Fake transport backed by a UNIXSocket pair.
-# socket_a is exposed as transport.socket — it is BOTH readable (when socket_b writes)
-# AND writable (send buffer not full), so IO.select works correctly for both read and write.
-# try_read_frame pulls from an in-memory queue; inject_response writes one byte to socket_b
-# to wake IO.select, then try_read_frame pops the frame and drains the wakeup byte.
-class FakeSharedTransport
-  attr_reader :frames_written, :connects, :closes
-
-  def initialize
-    @closed = true
-    @frames_written = []
-    @connects = 0
-    @closes = 0
-    @response_mutex = Mutex.new
-    @response_queue = []
-    @socket_a, @socket_b = UNIXSocket.pair
-    @connect_error = nil
-    @write_error = nil
-  end
-
-  def connect
-    raise @connect_error if @connect_error
-
-    @connects += 1
-    @closed = false
-  end
-
-  def closed? = @closed
-
-  def socket
-    @closed ? nil : @socket_a
-  end
-
-  def write_frame(bytes, **)
-    raise @write_error if @write_error
-
-    @frames_written << bytes
-  end
-
-  def try_read_frame
-    result = @response_mutex.synchronize { @response_queue.shift }
-    if result
-      result
-    else
-      # drain wakeup bytes written by inject_response / close
-      begin
-        loop { @socket_a.read_nonblock(1024) }
-      rescue IO::WaitReadable, IOError
-        nil
-      end
-      :wait
-    end
-  end
-
-  def close
-    @closes += 1
-    @closed = true
-    # write a byte to socket_b to make socket_a readable, waking IO.select
-    begin
-      @socket_b.write_nonblock('.')
-    rescue StandardError
-      nil
-    end
-  end
-
-  def inject_response(json)
-    @response_mutex.synchronize { @response_queue << json }
-    begin
-      @socket_b.write_nonblock('.')
-    rescue StandardError
-      nil
-    end
-  end
-
-  def fail_on_connect(err) = @connect_error = err
-  def fail_on_write(err) = @write_error = err
-end
+# FakeSharedTransport lives in spec/support/fake_shared_transport.rb so the
+# fiber-caller spec can reuse it without load-order coupling.
 
 RSpec.describe JRPC::SharedClient do
   def ok_response(id, result)
@@ -416,6 +341,177 @@ RSpec.describe JRPC::SharedClient do
         described_class.new('127.0.0.1:1234', transport: transport,
                                               write_timeout: 60, default_ttl: 30)
       }.to raise_error(ArgumentError)
+    end
+  end
+
+  # ── caller-thread interruption (Thread#raise mid-wait) ─────────────────────
+
+  describe 'caller interrupted while waiting' do
+    let(:logger) { instance_double(Logger, error: nil) }
+    let(:client) { build_client(logger: logger) }
+
+    it 'cancels the ticket, cleans up the registry, and treats a late response as orphan' do
+      caller = Thread.new do
+        client.request(:slow)
+      rescue StandardError
+        nil # swallow the injected interrupt
+      end
+      # Wait until the request is in flight (sent), so the caller is parked in #wait.
+      wait_for { transport.frames_written.size >= 1 }
+
+      caller.raise(StandardError, 'interrupted')
+      caller.join(2)
+
+      # The caller's ensure block must have removed the ticket from the registry,
+      # so the matching late response is now an orphan (logged, dropped, no crash).
+      transport.inject_response(ok_response('test-1', 99))
+      wait_for { transport.frames_written.size >= 0 } # let the loop spin once
+      sleep 0.05
+
+      expect(logger).to have_received(:error).with(/orphan response: id=/)
+      expect(client.closed?).to be false
+    end
+
+    it 'does not leave a leaked entry that would block a graceful close' do
+      caller = Thread.new do
+        client.request(:slow)
+      rescue StandardError
+        nil
+      end
+      wait_for { transport.frames_written.size >= 1 }
+
+      caller.raise(StandardError, 'interrupted')
+      caller.join(2)
+
+      # Registry was cleaned up by the caller; nothing in flight blocks the loop,
+      # so a graceful close joins cleanly (returns true) rather than force-killing.
+      expect(client.close(timeout: 1)).to be true
+    end
+  end
+
+  # ── connection drop mid-session ────────────────────────────────────────────
+
+  describe 'connection drop with in-flight requests' do
+    it 'drains every in-flight request with ConnectionError and keeps the thread running' do
+      errors = {}
+      callers = Array.new(3) do |i|
+        Thread.new do
+          client.request("m#{i}")
+        rescue StandardError => e
+          errors[i] = e
+        end
+      end
+      wait_for { transport.frames_written.size >= 3 }
+
+      transport.fail_on_read(JRPC::Transport::Base::ConnectionError.new('peer closed'))
+
+      callers.each { |t| t.join(2) }
+      expect(errors.values).to contain_exactly(
+        an_instance_of(JRPC::Errors::ConnectionError),
+        an_instance_of(JRPC::Errors::ConnectionError),
+        an_instance_of(JRPC::Errors::ConnectionError)
+      )
+      expect(client.closed?).to be false
+    end
+
+    it 'reconnects on the next request after a drop' do
+      caller = Thread.new do
+        client.request(:first)
+      rescue StandardError
+        nil
+      end
+      wait_for { transport.frames_written.size >= 1 }
+      transport.fail_on_read(JRPC::Transport::Base::ConnectionError.new('peer closed'))
+      caller.join(2)
+
+      expect(transport.connects).to be >= 1
+      before = transport.connects
+
+      result = nil
+      caller2 = Thread.new { result = client.request(:second) }
+      wait_for { transport.frames_written.size >= 2 }
+      id = JSON.parse(transport.frames_written.last)['id']
+      transport.inject_response(ok_response(id, 'ok'))
+      caller2.join(2)
+
+      expect(result).to eq('ok')
+      expect(transport.connects).to be > before
+    end
+  end
+
+  # ── framing corruption mid-stream ──────────────────────────────────────────
+
+  describe 'framing corruption' do
+    it 'tears down with ConnectionError("framing corruption...") then resynchronizes on reconnect' do
+      err = nil
+      caller = Thread.new do
+        client.request(:x)
+      rescue StandardError => e
+        err = e
+      end
+      wait_for { transport.frames_written.size >= 1 }
+
+      transport.fail_on_read(JRPC::Transport::Base::MalformedFrame.new('bad netstring length prefix'))
+      caller.join(2)
+
+      expect(err).to be_a(JRPC::Errors::ConnectionError)
+      expect(err.message).to match(/framing corruption/)
+
+      # Stream is resynchronized on the next connect: a fresh request resolves normally.
+      result = nil
+      caller2 = Thread.new { result = client.request(:y) }
+      wait_for { transport.frames_written.size >= 2 }
+      id = JSON.parse(transport.frames_written.last)['id']
+      transport.inject_response(ok_response(id, 7))
+      caller2.join(2)
+      expect(result).to eq(7)
+    end
+  end
+
+  # ── transport-thread crash ─────────────────────────────────────────────────
+
+  describe 'transport-thread crash' do
+    let(:logger) { instance_double(Logger, error: nil) }
+    let(:client) { build_client(logger: logger) }
+
+    # A non-transport StandardError from write_frame is not caught by the loop's
+    # transport-error rescues, so it escapes to TransportLoop#run's crash handler.
+    it 'drains in-flight requests with ConnectionError when the loop crashes' do
+      transport.fail_on_write(RuntimeError.new('boom'))
+      err = nil
+      caller = Thread.new do
+        client.request(:x)
+      rescue StandardError => e
+        err = e
+      end
+      caller.join(2)
+      expect(err).to be_a(JRPC::Errors::ConnectionError)
+    end
+
+    it 'marks the client unusable so later calls raise ClientError' do
+      transport.fail_on_write(RuntimeError.new('boom'))
+      caller = Thread.new do
+        client.request(:x)
+      rescue StandardError
+        nil
+      end
+      caller.join(2)
+
+      expect { client.request(:y) }
+        .to raise_error(JRPC::Errors::ClientError, /unusable/)
+    end
+
+    it 'still closes cleanly after a crash' do
+      transport.fail_on_write(RuntimeError.new('boom'))
+      caller = Thread.new do
+        client.request(:x)
+      rescue StandardError
+        nil
+      end
+      caller.join(2)
+
+      expect(client.close(timeout: 1)).to be true
+      expect(client.closed?).to be true
     end
   end
 end

@@ -43,6 +43,38 @@ RSpec.describe JRPC::Transport::Test do
       end
     end
 
+    it 'round-trips the error data member back to the client' do
+      transport.on('boom') do
+        raise JRPC::Errors::InvalidParams.new('bad params', data: 'missed mandatory parameter: src')
+      end
+
+      expect { client.request('boom') }.to raise_error(JRPC::Errors::InvalidParams) do |e|
+        expect(e.data).to eq('missed mandatory parameter: src')
+      end
+    end
+
+    it 'omits the data member when the raised error carries none' do
+      transport.on('boom') { raise JRPC::Errors::InvalidParams, 'bad params' }
+
+      expect { client.request('boom') }.to raise_error(JRPC::Errors::InvalidParams) do |e|
+        expect(e.data).to be_nil
+      end
+    end
+
+    # A `"data": null` member would satisfy the exception-level check above, so assert
+    # on the frame itself: the compatibility guarantee is that it is byte-identical to
+    # what a pre-`data` build emitted.
+    it 'leaves the data member out of the response frame entirely, not set to null' do
+      transport.on('boom') { raise JRPC::Errors::InvalidParams, 'bad params' }
+      transport.connect
+      transport.write_frame(JRPC::Message.dump(JRPC::Message.build_request('boom', nil, 'id-1')))
+
+      error = JSON.parse(transport.read_frame)['error']
+
+      expect(error).not_to have_key('data')
+      expect(error).to eq({ 'code' => -32_602, 'message' => 'bad params' })
+    end
+
     it 'raises a handler-raised transport error at read time, mapped to the client error' do
       transport.on('drop') { raise JRPC::Transport::Base::ConnectionError, 'peer reset' }
 

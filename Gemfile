@@ -5,16 +5,15 @@ source 'https://rubygems.org'
 # Specify your gem's dependencies in jrpc.gemspec
 gemspec
 
-gem 'bundler'
 gem 'rake', '~> 13.0'
 gem 'rspec', '~> 3.0'
 
 # Provides a real Fiber.scheduler for the fiber-caller specs (SharedClient §9.8).
 gem 'async', '~> 2.0'
 
-gem 'rubocop', '~> 1.21'
-gem 'rubocop-performance'
-gem 'rubocop-rspec'
+gem 'rubocop', '~> 1.90.0'
+gem 'rubocop-performance', '~> 1.27.0'
+gem 'rubocop-rspec', '~> 3.10.2'
 gem 'rubocop-rake', '~> 0.7.1'
 
 gem 'simplecov', '~> 0.22', require: false

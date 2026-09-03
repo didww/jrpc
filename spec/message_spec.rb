@@ -163,6 +163,22 @@ RSpec.describe JRPC::Message do
         expect(err.code).to eq(code)
         expect(err.message).to eq('msg')
       end
+
+      it "carries the data member through for code #{code}" do
+        err = described_class.error_to_exception('code' => code, 'message' => 'msg', 'data' => 'detail')
+        expect(err.data).to eq('detail')
+      end
+
+      it "leaves data nil when the peer omits it for code #{code}" do
+        err = described_class.error_to_exception('code' => code, 'message' => 'msg')
+        expect(err.data).to be_nil
+      end
+    end
+
+    it 'passes a structured data member through untouched' do
+      data = { 'field' => 'src', 'expected' => %w[src dst] }
+      err = described_class.error_to_exception('code' => -32_602, 'message' => 'Invalid params', 'data' => data)
+      expect(err.data).to eq(data)
     end
   end
 end

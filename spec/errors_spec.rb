@@ -76,6 +76,21 @@ RSpec.describe JRPC::Errors do
       err = described_class.new('bad')
       expect(err.code).to be_nil
     end
+
+    it 'stores data' do
+      err = described_class.new('bad', code: -99, data: { 'field' => 'name' })
+      expect(err.data).to eq('field' => 'name')
+    end
+
+    it 'data defaults to nil' do
+      err = described_class.new('bad')
+      expect(err.data).to be_nil
+    end
+
+    it 'keeps a primitive data value as-is' do
+      err = described_class.new('bad', data: 'missed mandatory parameter: src')
+      expect(err.data).to eq('missed mandatory parameter: src')
+    end
   end
 
   describe 'fixed-code server errors' do
@@ -90,6 +105,16 @@ RSpec.describe JRPC::Errors do
         err = described_class.const_get(name).new('msg')
         expect(err.code).to eq(expected_code)
       end
+
+      it "#{name} takes an optional data" do
+        err = described_class.const_get(name).new('msg', data: 'detail')
+        expect(err.data).to eq('detail')
+        expect(err.code).to eq(expected_code)
+      end
+
+      it "#{name} data defaults to nil" do
+        expect(described_class.const_get(name).new('msg').data).to be_nil
+      end
     end
   end
 
@@ -98,6 +123,11 @@ RSpec.describe JRPC::Errors do
       err = described_class.new('oops', code: -32_050)
       expect(err.code).to eq(-32_050)
     end
+
+    it 'stores the provided data' do
+      err = described_class.new('oops', code: -32_050, data: %w[a b])
+      expect(err.data).to eq(%w[a b])
+    end
   end
 
   describe JRPC::Errors::UnknownError do
@@ -105,12 +135,23 @@ RSpec.describe JRPC::Errors do
       err = described_class.new('what', code: 42)
       expect(err.code).to eq(42)
     end
+
+    it 'stores the provided data' do
+      err = described_class.new('what', code: 42, data: 'why')
+      expect(err.data).to eq('why')
+    end
   end
 
   describe JRPC::Errors::MalformedResponseError do
     it 'code is nil' do
       err = described_class.new('bad frame')
       expect(err.code).to be_nil
+    end
+
+    # Raised locally, never built from a peer error object, so there is no data to carry.
+    it 'data is nil' do
+      err = described_class.new('bad frame')
+      expect(err.data).to be_nil
     end
   end
 end

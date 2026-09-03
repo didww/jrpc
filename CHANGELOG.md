@@ -1,6 +1,23 @@
 # Changelog
 
-### Unreleased
+### 2.2.0
+
+**New**
+
+* `JRPC::Errors::ServerError#data` — the JSON-RPC `error.data` member is now carried
+  onto the raised exception instead of being dropped. `Message.error_to_exception`
+  reads `error['data']` and passes it to every `ServerError` subclass built from a peer
+  error object, verbatim and untyped (String, Hash, Array, … — whatever the peer sent),
+  `nil` when omitted. It is the only machine-readable detail an error object carries
+  beyond `code`, and servers use it to say *which* param was invalid or *which* id
+  conflicted. `MalformedResponseError` is raised locally rather than mapped from a peer
+  error object, so its `data` is always `nil`.
+  `JRPC::Transport::Test` emits a `data` member when a handler raises an error that
+  carries one, so the round trip is testable. Backwards compatible: on those classes
+  `data:` is a keyword with a `nil` default, and the wire frame is unchanged when there
+  is no data — the member is omitted, never emitted as `null`.
+
+### 2.1.0
 
 **New**
 

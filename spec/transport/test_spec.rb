@@ -61,6 +61,20 @@ RSpec.describe JRPC::Transport::Test do
       end
     end
 
+    # A `"data": null` member would satisfy the exception-level check above, so assert
+    # on the frame itself: the compatibility guarantee is that it is byte-identical to
+    # what a pre-`data` build emitted.
+    it 'leaves the data member out of the response frame entirely, not set to null' do
+      transport.on('boom') { raise JRPC::Errors::InvalidParams, 'bad params' }
+      transport.connect
+      transport.write_frame(JRPC::Message.dump(JRPC::Message.build_request('boom', nil, 'id-1')))
+
+      error = JSON.parse(transport.read_frame)['error']
+
+      expect(error).not_to have_key('data')
+      expect(error).to eq({ 'code' => -32_602, 'message' => 'bad params' })
+    end
+
     it 'raises a handler-raised transport error at read time, mapped to the client error' do
       transport.on('drop') { raise JRPC::Transport::Base::ConnectionError, 'peer reset' }
 

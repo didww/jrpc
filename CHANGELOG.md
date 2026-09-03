@@ -13,9 +13,9 @@
   conflicted. `MalformedResponseError` is raised locally rather than mapped from a peer
   error object, so its `data` is always `nil`.
   `JRPC::Transport::Test` emits a `data` member when a handler raises an error that
-  carries one, so the round trip is testable. Backwards compatible: `data:` is a
-  keyword with a `nil` default on every constructor, and the wire frame is unchanged
-  when there is no data.
+  carries one, so the round trip is testable. Backwards compatible: on those classes
+  `data:` is a keyword with a `nil` default, and the wire frame is unchanged when there
+  is no data — the member is omitted, never emitted as `null`.
 
 ### 2.1.0
 

@@ -43,6 +43,24 @@ RSpec.describe JRPC::Transport::Test do
       end
     end
 
+    it 'round-trips the error data member back to the client' do
+      transport.on('boom') do
+        raise JRPC::Errors::InvalidParams.new('bad params', data: 'missed mandatory parameter: src')
+      end
+
+      expect { client.request('boom') }.to raise_error(JRPC::Errors::InvalidParams) do |e|
+        expect(e.data).to eq('missed mandatory parameter: src')
+      end
+    end
+
+    it 'omits the data member when the raised error carries none' do
+      transport.on('boom') { raise JRPC::Errors::InvalidParams, 'bad params' }
+
+      expect { client.request('boom') }.to raise_error(JRPC::Errors::InvalidParams) do |e|
+        expect(e.data).to be_nil
+      end
+    end
+
     it 'raises a handler-raised transport error at read time, mapped to the client error' do
       transport.on('drop') { raise JRPC::Transport::Base::ConnectionError, 'peer reset' }
 

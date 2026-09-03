@@ -282,12 +282,14 @@ module JRPC
         JSON.generate({ 'jsonrpc' => JRPC::JSON_RPC_VERSION, 'id' => id, 'result' => result })
       end
 
+      # `data` is emitted only when the raised error carries one, so a handler that
+      # ignores it produces the same frame as before.
       def error_response(id, error)
         code = error.respond_to?(:code) && error.code.is_a?(Integer) ? error.code : -32_000
-        JSON.generate(
-          { 'jsonrpc' => JRPC::JSON_RPC_VERSION, 'id' => id,
-            'error' => { 'code' => code, 'message' => error.message } }
-        )
+        data = error.respond_to?(:data) ? error.data : nil
+        err = { 'code' => code, 'message' => error.message }
+        err['data'] = data unless data.nil?
+        JSON.generate({ 'jsonrpc' => JRPC::JSON_RPC_VERSION, 'id' => id, 'error' => err })
       end
 
       def enqueue(entry)

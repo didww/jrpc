@@ -133,6 +133,7 @@ Errors::Error (RuntimeError)
 ├── Errors::Timeout              # message TTL elapsed, or SimpleClient read/write/connect timeout
 └── Errors::ServerError          # peer returned an error, or the response was unusable
        attr_reader :code         # nil for malformed responses
+       attr_reader :data         # the error object's `data` member, nil when absent
        ├── Errors::ParseError              # -32700
        ├── Errors::InvalidRequest          # -32600
        ├── Errors::MethodNotFound          # -32601
@@ -145,11 +146,17 @@ Errors::Error (RuntimeError)
 
 `MalformedResponseError` is a `ServerError`, not a `ClientError`: a malformed response is the peer's fault.
 
+`#data` carries the error object's optional `data` member through untouched — a String,
+Hash, Array or number, whatever the peer sent, and `nil` when it sent none. It is where a
+server says *which* param was invalid or *which* id conflicted, so log it alongside the
+code. `MalformedResponseError` is raised locally rather than built from a peer error
+object, so its `data` is always `nil`.
+
 ```ruby
 begin
   client.request(:do_thing, [1, 2])
 rescue JRPC::Errors::ServerError => e
-  warn "rpc error #{e.code}: #{e.message}"
+  warn "rpc error #{e.code}: #{e.message} #{e.data.inspect}"
 rescue JRPC::Errors::Timeout
   warn "timed out"
 rescue JRPC::Errors::ConnectionError => e

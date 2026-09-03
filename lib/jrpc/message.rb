@@ -49,17 +49,21 @@ module JRPC
       end
     end
 
+    # `error.data` is optional per the spec and is passed through untouched: servers use
+    # it to say *which* param was invalid, *which* id conflicted, and so on — the only
+    # machine-readable detail an error object carries beyond the code.
     def self.error_to_exception(error_hash)
       code = error_hash['code']
       message = error_hash['message']
+      data = error_hash['data']
       case code
-      when -32_700 then Errors::ParseError.new(message)
-      when -32_600 then Errors::InvalidRequest.new(message)
-      when -32_601 then Errors::MethodNotFound.new(message)
-      when -32_602 then Errors::InvalidParams.new(message)
-      when -32_603 then Errors::InternalError.new(message)
-      when -32_099..-32_000 then Errors::InternalServerError.new(message, code: code)
-      else Errors::UnknownError.new(message, code: code)
+      when -32_700 then Errors::ParseError.new(message, data: data)
+      when -32_600 then Errors::InvalidRequest.new(message, data: data)
+      when -32_601 then Errors::MethodNotFound.new(message, data: data)
+      when -32_602 then Errors::InvalidParams.new(message, data: data)
+      when -32_603 then Errors::InternalError.new(message, data: data)
+      when -32_099..-32_000 then Errors::InternalServerError.new(message, code: code, data: data)
+      else Errors::UnknownError.new(message, code: code, data: data)
       end
     end
 

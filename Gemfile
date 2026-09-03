@@ -11,9 +11,9 @@ gem 'rspec', '~> 3.0'
 # Provides a real Fiber.scheduler for the fiber-caller specs (SharedClient §9.8).
 gem 'async', '~> 2.0'
 
-gem 'rubocop', '~> 1.21'
-gem 'rubocop-performance', '~> 1.27'
-gem 'rubocop-rspec', '~> 3.10'
+gem 'rubocop', '~> 1.90.0'
+gem 'rubocop-performance', '~> 1.27.0'
+gem 'rubocop-rspec', '~> 3.10.2'
 gem 'rubocop-rake', '~> 0.7.1'
 
 gem 'simplecov', '~> 0.22', require: false

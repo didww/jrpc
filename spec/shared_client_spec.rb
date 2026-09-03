@@ -476,7 +476,7 @@ RSpec.describe JRPC::SharedClient do
       caller.join(2)
 
       expect(err).to be_a(JRPC::Errors::ConnectionError)
-      expect(err.message).to match(/framing corruption/)
+      expect(err.message).to include('framing corruption')
 
       # Stream is resynchronized on the next connect: a fresh request resolves normally.
       result = nil
